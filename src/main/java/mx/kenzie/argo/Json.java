@@ -288,7 +288,8 @@ public class Json implements Closeable, AutoCloseable {
     @Override
     public void close() {
         try {
-            this.reader.close();
+            if (reader != null) reader.close();
+            if (writer != null) this.writer.close();
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
