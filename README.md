@@ -15,30 +15,36 @@ Json arrays are converted to `ArrayList`s for easier modification.
 
 ### How to Use
 
-Reading data:
+Reading data...
 
+From a json object:
 ```java 
 // data = { "hello": true, "there": null }
-// String / File / InputStream
+// data is String / File / InputStream
 try (final Json json = new Json(data)) {
     final Map<String, Object> map = json.toMap();
-    assert map.size() == 2;
-    assert map.get("hello").equals(true): map;
-    assert map.get("there") == null: map;
 }
+
+// Simple string -> map
+final Map<String, Object> map = Json.fromJson(data);
+```
+
+From a json array:
+```java
 // data = [ 1, 2, 3 ]
+// data is String / File / InputStream
 try (final Json json = new Json(data)) {
     final List<Object> list = json.toList();
-    assert map.size() == 3;
-    assert list.contains(2);
 }
 ```
 
-Writing data:
-
+Writing as json data:
 ```java 
-// output is File / Writer
+// output is a File / Writer
+// map is the data
 new Json(output).write(map);
+
+// fast object to json string
 Json.toJson(map); // -> { ... }
 Json.toJson(list); // -> [ ... ]
 ```
