@@ -1,14 +1,16 @@
 package mx.kenzie.argo;
 
 import mx.kenzie.argo.error.JsonException;
+import sun.reflect.ReflectionFactory;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static mx.kenzie.argo.Json.*;
@@ -66,6 +68,126 @@ public class Json implements Closeable, AutoCloseable {
     
     public Json(java.io.Writer writer) {
         this.writer = writer;
+    }
+    
+    @SuppressWarnings("unchecked")
+    private <Type> Constructor<Type> createConstructor0(Class<Type> type) throws NoSuchMethodException {
+        final Constructor<?> shift = Object.class.getConstructor();
+        return (Constructor<Type>) ReflectionFactory.getReflectionFactory().newConstructorForSerialization(type, shift);
+    }
+    
+    private <Type> Type createObject(Class<Type> type, Object parent) {
+        try {
+            if (type.isLocalClass() || type.getEnclosingClass() != null) {
+                assert parent != null;
+                final Constructor<Type> constructor = this.createConstructor0(type);
+                assert constructor != null;
+                return constructor.newInstance();
+            } else {
+                final Constructor<Type> constructor = type.getDeclaredConstructor();
+                final boolean result = constructor.trySetAccessible();
+                assert result || constructor.canAccess(null);
+                return constructor.newInstance();
+            }
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
+            throw new JsonException("Unable to create '" + type.getSimpleName() + "' object.", e);
+        }
+    }
+    
+    private void write(Object object, Class<?> type, Map<String, Object> map) {
+        for (final Field field : type.getDeclaredFields()) {
+            final int modifiers = field.getModifiers();
+            if ((modifiers & 0x00000002) != 0) continue;
+            if ((modifiers & 0x00000008) != 0) continue;
+            if ((modifiers & 0x00000080) != 0) continue;
+            if ((modifiers & 0x00001000) != 0) continue;
+            if (!field.canAccess(object)) field.trySetAccessible();
+            try {
+                final Object value = field.get(object);
+                final Class<?> expected = field.getType();
+                final String key = field.getName();
+                if (value == null) map.put(key, null);
+                else if (value instanceof String) map.put(key, value);
+                else if (value instanceof Number) map.put(key, value);
+                else if (value instanceof Boolean) map.put(key, value);
+                else if (value instanceof List<?>) map.put(key, value);
+                else {
+                    final Map<String, Object> child = new HashMap<>();
+                    map.put(key, child);
+                    this.write(value, expected, child);
+                }
+            } catch (Throwable ex) {
+                throw new JsonException("Unable to write to object:", ex);
+            }
+        }
+    }
+    
+    public void write(Object object, Class<?> type, String indent) {
+        assert object != null: "Object was null.";
+        assert object instanceof Class<?> ^ true: "Classes cannot be read from.";
+        final Map<String, Object> map = new HashMap<>();
+        this.write(object, type, map);
+        this.write(map, indent, 0);
+    }
+    
+    public void write(Object object, String indent) {
+        if (object instanceof Map<?, ?> map) this.write(map, indent, 0);
+        else if (object instanceof List<?> list) this.write(list, indent, 0);
+        else this.write(object, object.getClass(), indent);
+    }
+    
+    public void write(Object object) {
+        this.write(object, object.getClass(), (String) null);
+    }
+    
+    private <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
+        assert object != null: "Object was null.";
+        assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
+        for (final Field field : type.getDeclaredFields()) {
+            final int modifiers = field.getModifiers();
+            if ((modifiers & 0x00000002) != 0) continue;
+            if ((modifiers & 0x00000008) != 0) continue;
+            if ((modifiers & 0x00000080) != 0) continue;
+            if ((modifiers & 0x00001000) != 0) continue;
+            if (!field.canAccess(object)) field.trySetAccessible();
+            if (!map.containsKey(field.getName())) continue;
+            final Object value = map.get(field.getName());
+            final Class<?> expected = field.getType();
+            try {
+                if (value == null) field.set(object, null);
+                else if (expected.isAssignableFrom(value.getClass())) field.set(object, value);
+                else if (expected.isPrimitive() && value instanceof Number number) {
+                    if (expected == int.class) field.setInt(object, number.intValue());
+                    else if (expected == long.class) field.setLong(object, number.longValue());
+                    else if (expected == double.class) field.setDouble(object, number.doubleValue());
+                    else if (expected == float.class) field.setFloat(object, number.floatValue());
+                } else if (value instanceof Map<?, ?> child) {
+                    final Object sub = this.createObject(expected, object);
+                    field.set(object, sub);
+                    this.toObject(sub, expected, child);
+                } else throw new JsonException("Value of '" + field.getName() + "' (" + object.getClass().getSimpleName() + ") could not be mapped to type " + expected.getSimpleName());
+            } catch (Throwable ex) {
+                throw new JsonException("Unable to write to object:", ex);
+            }
+        }
+        return object;
+    }
+    
+    public <Type> Type toObject(Type object, Class<?> type) {
+        assert object != null: "Object was null.";
+        assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
+        final Map<String, Object> map = this.toMap();
+        return this.toObject(object, type, map);
+    }
+    
+    public <Type> Type toObject(Type object) {
+        assert object != null: "Object was null.";
+        return this.toObject(object, object.getClass());
+    }
+    
+    public <Type> Type toObject(Class<Type> type) {
+        final Type object = this.createObject(type, null);
+        return this.toObject(object, type);
     }
     
     public List<Object> toList() {
@@ -295,6 +417,24 @@ public class Json implements Closeable, AutoCloseable {
         }
     }
     
+    public static String toJson(Object object, Class<?> type, String indent) {
+        final StringWriter writer = new StringWriter();
+        new Json(writer).write(object, type, indent);
+        return writer.toString();
+    }
+    
+    public static String toJson(Object object, String indent) {
+        final StringWriter writer = new StringWriter();
+        new Json(writer).write(object, indent);
+        return writer.toString();
+    }
+    
+    public static String toJson(Object object) {
+        final StringWriter writer = new StringWriter();
+        new Json(writer).write(object);
+        return writer.toString();
+    }
+    
     public static String toJson(Map<?, ?> map, String indent) {
         final StringWriter writer = new StringWriter();
         new Json(writer).write(map, indent, 0);
@@ -322,6 +462,24 @@ public class Json implements Closeable, AutoCloseable {
     public static Map<String, Object> fromJson(String string) {
         try (final Json json = new Json(string)) {
             return json.toMap();
+        }
+    }
+    
+    public static <Type> Type fromJson(String string, Type object) {
+        try (final Json json = new Json(string)) {
+            return json.toObject(object);
+        }
+    }
+    
+    public static <Type> Type fromJson(String string, Class<Type> object) {
+        try (final Json json = new Json(string)) {
+            return json.toObject(object);
+        }
+    }
+    
+    public static <Type> Type fromJson(String string, Type object, Class<?> type) {
+        try (final Json json = new Json(string)) {
+            return json.toObject(object, type);
         }
     }
     
