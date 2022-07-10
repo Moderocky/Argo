@@ -3,15 +3,18 @@ package mx.kenzie.argo;
 import mx.kenzie.argo.error.JsonException;
 import sun.reflect.ReflectionFactory;
 
+import java.awt.*;
 import java.io.*;
 import java.lang.reflect.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static mx.kenzie.argo.Json.*;
 
+@SuppressWarnings({"unchecked", "TypeParameterHidesVisibleType", "SameParameterValue"})
 public class Json implements Closeable, AutoCloseable {
     
     static final byte
@@ -35,21 +38,22 @@ public class Json implements Closeable, AutoCloseable {
     protected int state = START;
     private transient StringBuilder currentKey, currentValue;
     
+    //<editor-fold desc="Constructors" defaultstate="collapsed">
     public Json(java.io.Reader reader) {
         this.reader = reader;
     }
-    
+
     public Json(String string) {
         this(string, StandardCharsets.UTF_8);
     }
-    
+
     public Json(String string, Charset charset) {
         this(new ByteArrayInputStream(string.getBytes(charset)));
     }
     public Json(InputStream reader) {
         this.reader = new BufferedReader(new InputStreamReader(reader));
     }
-    
+
     public Json(File file) {
         try {
             this.reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
@@ -58,15 +62,17 @@ public class Json implements Closeable, AutoCloseable {
             throw new JsonException(e);
         }
     }
-    
+
     public Json(OutputStream stream) {
         this.writer = new OutputStreamWriter(stream);
     }
-    
+
     public Json(java.io.Writer writer) {
         this.writer = writer;
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Construction" defaultstate="collapsed">
     @SuppressWarnings("unchecked")
     private <Type> Constructor<Type> createConstructor0(Class<Type> type) throws NoSuchMethodException {
         final Constructor<?> shift = Object.class.getConstructor();
@@ -118,7 +124,9 @@ public class Json implements Closeable, AutoCloseable {
             for (final Object object : objects) list.add(this.deconstructSimple(object, component));
         }
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Writers" defaultstate="collapsed">
     private void write(Object object, Class<?> type, Map<String, Object> map) {
         for (final Field field : type.getDeclaredFields()) {
             final int modifiers = field.getModifiers();
@@ -151,6 +159,7 @@ public class Json implements Closeable, AutoCloseable {
         }
     }
     
+    @SuppressWarnings("all")
     public void write(Object object, Class<?> type, String indent) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be read from.";
@@ -168,7 +177,9 @@ public class Json implements Closeable, AutoCloseable {
     public void write(Object object) {
         this.write(object, object.getClass(), (String) null);
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Converters" defaultstate="collapsed">
     private Object convertSimple(Object data, Class<?> expected) {
         if (data instanceof List<?> list) return this.convertList(expected, list);
         else if (data instanceof Map<?, ?> map) return this.toObject(this.createObject(expected), expected, map);
@@ -205,7 +216,10 @@ public class Json implements Closeable, AutoCloseable {
         }
         return object;
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Object Wrappers" defaultstate="collapsed">
+    @SuppressWarnings("all")
     private <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
@@ -242,6 +256,7 @@ public class Json implements Closeable, AutoCloseable {
         return object;
     }
     
+    @SuppressWarnings({"all"})
     public <Type> Type toObject(Type object, Class<?> type) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
@@ -259,6 +274,32 @@ public class Json implements Closeable, AutoCloseable {
         return this.toObject(object, type);
     }
     
+    public Object[] toArray() {
+        return this.toArray(new Object[0]);
+    }
+    
+    public <Component> Component[] toArray(Class<Component> type) {
+        return (Component[]) this.toArray(Array.newInstance(type, 0));
+    }
+    
+    @SuppressWarnings({"all"})
+    public <Container> Container toArray(Container array) {
+        if (array == null) throw new JsonException("Provided array was null.");
+        final Class<?> type = array.getClass();
+        if (!type.isArray()) throw new JsonException("Provided object was not an array.");
+        final Class<?> component = type.getComponentType();
+        final List<?> list = this.toList();
+        final Container container;
+        if (Array.getLength(array) < 1) container = (Container) Array.newInstance(component, list.size());
+        else container = array;
+        final Object source = this.convertList(container.getClass(), list);
+        final int a = Array.getLength(container), b = Array.getLength(source);
+        System.arraycopy(source, 0, container, 0, Math.min(a, b));
+        return container;
+    }
+    //</editor-fold>
+    
+    //<editor-fold desc="Readers" defaultstate="collapsed">
     public List<Object> toList() {
         return this.toNewList(ArrayList::new);
     }
@@ -435,7 +476,9 @@ public class Json implements Closeable, AutoCloseable {
         if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
         this.writeChar('}');
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Helpers" defaultstate="collapsed">
     protected void mark(int chars) {
         try {
             this.reader.mark(chars);
@@ -485,7 +528,9 @@ public class Json implements Closeable, AutoCloseable {
             throw new JsonException(ex);
         }
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Static Helper Methods" defaultstate="collapsed">
     public static String toJson(Object object, Class<?> type, String indent) {
         final StringWriter writer = new StringWriter();
         new Json(writer).write(object, type, indent);
@@ -536,13 +581,15 @@ public class Json implements Closeable, AutoCloseable {
     
     public static <Type> Type fromJson(String string, Type object) {
         try (final Json json = new Json(string)) {
-            return json.toObject(object);
+            if (object.getClass().isArray()) return json.toArray(object);
+            else return json.toObject(object);
         }
     }
     
     public static <Type> Type fromJson(String string, Class<Type> object) {
         try (final Json json = new Json(string)) {
-            return json.toObject(object);
+            if (object.isArray()) return (Type) json.toArray(object.getComponentType());
+            else return json.toObject(object);
         }
     }
     
@@ -551,7 +598,9 @@ public class Json implements Closeable, AutoCloseable {
             return json.toObject(object, type);
         }
     }
+    //</editor-fold>
     
+    //<editor-fold desc="Reader Classes" defaultstate="collapsed">
     private interface Reader {
         Object read();
     }
@@ -668,8 +717,11 @@ public class Json implements Closeable, AutoCloseable {
         }
         
     }
+    //</editor-fold>
     
 }
+
+@SuppressWarnings({"TypeParameterHidesVisibleType", "SameParameterValue", "null"})
 class JsonArray {
     
     private final Reader reader;
@@ -795,6 +847,7 @@ class JsonArray {
     
     protected void writeString(String value) {
         try {
+            assert writer != null;
             this.writer.write(value);
         } catch (IOException ex) {
             throw new JsonException(ex);
@@ -803,6 +856,7 @@ class JsonArray {
     
     protected void writeChar(char c) {
         try {
+            assert writer != null;
             this.writer.write(c);
         } catch (IOException ex) {
             throw new JsonException(ex);
@@ -811,6 +865,7 @@ class JsonArray {
     
     protected void mark(int chars) {
         try {
+            assert reader != null;
             this.reader.mark(chars);
         } catch (IOException ex) {
             throw new JsonException(ex);
@@ -819,6 +874,7 @@ class JsonArray {
     
     protected char readChar() {
         try {
+            assert reader != null;
             return (char) reader.read();
         } catch (IOException ex) {
             throw new JsonException(ex);
@@ -827,6 +883,7 @@ class JsonArray {
     
     protected void reset() {
         try {
+            assert reader != null;
             this.reader.reset();
         } catch (IOException ex) {
             throw new JsonException(ex);

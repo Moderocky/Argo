@@ -142,4 +142,16 @@ public class ObjectAccessTest {
         assert result.children[1].a == 3;
     }
     
+    @Test
+    @SuppressWarnings("FieldMayBeFinal")
+    public void directArray() {
+        final String string = """
+            [ 1, 3, 5 ]
+            """;
+        final int[] result = Json.fromJson(string, new int[0]);
+        assert result != null;
+        assert result.length == 3;
+        assert result[1] == 3;
+    }
+    
 }
