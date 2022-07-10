@@ -34,7 +34,7 @@ Converting a json array will not convert its `Object` contents.
 <dependency>
     <groupId>mx.kenzie</groupId>
     <artifactId>argo</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
 </dependency>
 ```
 
@@ -88,4 +88,12 @@ class Result { String hello = "there"; Child child = new Child(); }
 final Result result = new Result();
 final String string = Json.toJson(result);
 // string = { "hello": "there", "child": { "bean": 3 } }
+```
+
+Converting a type with an array:
+```java 
+// data = { "numbers": [0.5, 2.2, ...], "children": [ ... ] }
+class Result { double[] numbers; Child[] children; }
+final Result result = Json.fromJson(data, new Result());
+assert result.numbers[1] == 2.2;
 ```

@@ -4,10 +4,7 @@ import mx.kenzie.argo.error.JsonException;
 import sun.reflect.ReflectionFactory;
 
 import java.io.*;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -76,10 +73,9 @@ public class Json implements Closeable, AutoCloseable {
         return (Constructor<Type>) ReflectionFactory.getReflectionFactory().newConstructorForSerialization(type, shift);
     }
     
-    private <Type> Type createObject(Class<Type> type, Object parent) {
+    private <Type> Type createObject(Class<Type> type) {
         try {
             if (type.isLocalClass() || type.getEnclosingClass() != null) {
-                assert parent != null;
                 final Constructor<Type> constructor = this.createConstructor0(type);
                 assert constructor != null;
                 return constructor.newInstance();
@@ -91,6 +87,35 @@ public class Json implements Closeable, AutoCloseable {
             }
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
             throw new JsonException("Unable to create '" + type.getSimpleName() + "' object.", e);
+        }
+    }
+    
+    private Object deconstructSimple(Object value, Class<?> component) {
+        if (value == null) return null;
+        if (value instanceof String) return value;
+        if (value instanceof Number) return value;
+        if (value instanceof Boolean) return value;
+        if (value.getClass().isArray()) {
+            final List<Object> list = new ArrayList<>();
+            this.deconstructArray(value, component, list);
+            return list;
+        }
+        final Map<String, Object> map = new HashMap<>();
+        this.write(value, component, map);
+        return map;
+    }
+    
+    private void deconstructArray(Object array, Class<?> type, List<Object> list) {
+        final Class<?> component = type.getComponentType();
+        if (component.isPrimitive()) {
+            if (array instanceof int[] numbers) for (int number : numbers) list.add(number);
+            else if (array instanceof long[] numbers) for (long number : numbers) list.add(number);
+            else if (array instanceof double[] numbers) for (double number : numbers) list.add(number);
+            else if (array instanceof float[] numbers) for (float number : numbers) list.add(number);
+            else if (array instanceof boolean[] numbers) for (boolean number : numbers) list.add(number);
+        } else {
+            final Object[] objects = (Object[]) array;
+            for (final Object object : objects) list.add(this.deconstructSimple(object, component));
         }
     }
     
@@ -111,7 +136,11 @@ public class Json implements Closeable, AutoCloseable {
                 else if (value instanceof Number) map.put(key, value);
                 else if (value instanceof Boolean) map.put(key, value);
                 else if (value instanceof List<?>) map.put(key, value);
-                else {
+                else if (expected.isArray()) {
+                    final List<Object> child = new ArrayList<>();
+                    map.put(key, child);
+                    this.deconstructArray(value, expected, child);
+                } else {
                     final Map<String, Object> child = new HashMap<>();
                     map.put(key, child);
                     this.write(value, expected, child);
@@ -140,6 +169,43 @@ public class Json implements Closeable, AutoCloseable {
         this.write(object, object.getClass(), (String) null);
     }
     
+    private Object convertSimple(Object data, Class<?> expected) {
+        if (data instanceof List<?> list) return this.convertList(expected, list);
+        else if (data instanceof Map<?, ?> map) return this.toObject(this.createObject(expected), expected, map);
+        else return data;
+    }
+    
+    private Object convertList(Class<?> type, List<?> list) {
+        final Class<?> component = type.getComponentType();
+        final Object object = Array.newInstance(component, list.size());
+        final Object[] objects = list.toArray();
+        if (component.isPrimitive()) {
+            if (component == boolean.class) for (int i = 0; i < objects.length; i++) {
+                final Object value = objects[i];
+                Array.setBoolean(object, i, (boolean) value);
+            } else if (component == int.class) for (int i = 0; i < objects.length; i++) {
+                final Object value = objects[i];
+                Array.setInt(object, i, ((Number) value).intValue());
+            } else if (component == long.class) for (int i = 0; i < objects.length; i++) {
+                final Object value = objects[i];
+                Array.setLong(object, i, ((Number) value).longValue());
+            } else if (component == double.class) for (int i = 0; i < objects.length; i++) {
+                final Object value = objects[i];
+                Array.setDouble(object, i, ((Number) value).doubleValue());
+            } else if (component == float.class) for (int i = 0; i < objects.length; i++) {
+                final Object value = objects[i];
+                Array.setFloat(object, i, ((Number) value).floatValue());
+            }
+        } else {
+            final Object[] array = (Object[]) object;
+            for (int i = 0; i < objects.length; i++) {
+                final Object value = objects[i];
+                array[i] = this.convertSimple(value, component);
+            }
+        }
+        return object;
+    }
+    
     private <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
@@ -162,9 +228,12 @@ public class Json implements Closeable, AutoCloseable {
                     else if (expected == double.class) field.setDouble(object, number.doubleValue());
                     else if (expected == float.class) field.setFloat(object, number.floatValue());
                 } else if (value instanceof Map<?, ?> child) {
-                    final Object sub = this.createObject(expected, object);
+                    final Object sub = this.createObject(expected);
                     field.set(object, sub);
                     this.toObject(sub, expected, child);
+                } else if (expected.isArray() && value instanceof List<?> list) {
+                    final Object array = this.convertList(expected, list);
+                    field.set(object, array);
                 } else throw new JsonException("Value of '" + field.getName() + "' (" + object.getClass().getSimpleName() + ") could not be mapped to type " + expected.getSimpleName());
             } catch (Throwable ex) {
                 throw new JsonException("Unable to write to object:", ex);
@@ -186,7 +255,7 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     public <Type> Type toObject(Class<Type> type) {
-        final Type object = this.createObject(type, null);
+        final Type object = this.createObject(type);
         return this.toObject(object, type);
     }
     

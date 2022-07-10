@@ -3,6 +3,8 @@ package mx.kenzie.argo.test;
 import mx.kenzie.argo.Json;
 import org.junit.Test;
 
+import java.util.Arrays;
+
 public class ObjectAccessTest {
     
     public static final class Simple {
@@ -20,6 +22,7 @@ public class ObjectAccessTest {
     }
     
     @Test
+    @SuppressWarnings("FieldMayBeFinal")
     public void inner() {
         class Result { String hello = null; }
         final String string = """
@@ -81,6 +84,7 @@ public class ObjectAccessTest {
     }
     
     @Test
+    @SuppressWarnings("FieldMayBeFinal")
     public void reverseChildren() {
         class Child { int bean = 3; }
         class Result { String hello = "there"; Child child = new Child(); }
@@ -88,6 +92,54 @@ public class ObjectAccessTest {
         final String string = Json.toJson(result);
         assert string != null;
         assert string.equals("{\"hello\": \"there\",\"child\": {\"bean\": 3}}"): string;
+    }
+    
+    @Test
+    @SuppressWarnings("FieldMayBeFinal")
+    public void simpleArrayTest() {
+        class Result { String hello = "there"; int[] numbers = {5, 6, 7};  }
+        final Result result = new Result();
+        final String string = Json.toJson(result);
+        assert string != null;
+        assert string.equals("{\"numbers\": [5,6,7],\"hello\": \"there\"}"): string;
+        final Result test = Json.fromJson(string, new Result());
+        assert test != null;
+        assert test.hello.equals(result.hello): test.hello;
+        assert Arrays.equals(test.numbers, result.numbers): test.numbers;
+    }
+    
+    @Test
+    @SuppressWarnings("FieldMayBeFinal")
+    public void complexArrayTest() {
+        class Child { int a = 1; }
+        class Result { Child[] children = { new Child(), new Child() }; }
+        final Result result = new Result();
+        result.children[0].a = 2;
+        final String string = Json.toJson(result);
+        assert string != null;
+        assert string.equals("{\"children\": [{\"a\": 2},{\"a\": 1}]}"): string;
+        final Result test = Json.fromJson(string, new Result());
+        assert test != null;
+        assert test.children != null;
+        assert test.children.length == 2;
+        assert test.children[0].a == 2;
+        assert test.children[1].a == 1;
+    }
+    
+    @Test
+    @SuppressWarnings("FieldMayBeFinal")
+    public void arrayFromData() {
+        class Child { int a; }
+        class Result { Child[] children; }
+        final String string = """
+            { "children": [ { "a": 5 }, { "a": 3 } ] }
+            """;
+        final Result result = Json.fromJson(string, new Result());
+        assert result != null;
+        assert result.children != null;
+        assert result.children.length == 2;
+        assert result.children[0].a == 5;
+        assert result.children[1].a == 3;
     }
     
 }
