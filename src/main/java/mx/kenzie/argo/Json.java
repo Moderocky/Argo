@@ -128,7 +128,10 @@ public class Json implements Closeable, AutoCloseable {
     
     //<editor-fold desc="Writers" defaultstate="collapsed">
     private void write(Object object, Class<?> type, Map<String, Object> map) {
-        for (final Field field : type.getDeclaredFields()) {
+        final Set<Field> fields = new HashSet<>();
+        fields.addAll(List.of(type.getDeclaredFields()));
+        fields.addAll(List.of(type.getFields()));
+        for (final Field field : fields) {
             final int modifiers = field.getModifiers();
             if ((modifiers & 0x00000002) != 0) continue;
             if ((modifiers & 0x00000008) != 0) continue;
@@ -223,7 +226,10 @@ public class Json implements Closeable, AutoCloseable {
     private <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
-        for (final Field field : type.getDeclaredFields()) {
+        final Set<Field> fields = new HashSet<>();
+        fields.addAll(List.of(type.getDeclaredFields()));
+        fields.addAll(List.of(type.getFields()));
+        for (final Field field : fields) {
             final int modifiers = field.getModifiers();
             if ((modifiers & 0x00000002) != 0) continue;
             if ((modifiers & 0x00000008) != 0) continue;
