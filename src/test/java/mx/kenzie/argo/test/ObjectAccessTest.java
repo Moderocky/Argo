@@ -154,4 +154,18 @@ public class ObjectAccessTest {
         assert result[1] == 3;
     }
     
+    @Test
+    public void existingMesh() {
+        class Child { int foo, bar = 6; }
+        class Result { final Child child = new Child(); }
+        final String string = """
+            { "hello": "there", "child": { "foo": 1 } }
+            """;
+        final Result result = Json.fromJson(string, new Result());
+        assert result != null;
+        assert result.child.foo == 1: result.child.foo;
+        assert result.child.bar == 6: result.child.bar;
+        
+    }
+    
 }

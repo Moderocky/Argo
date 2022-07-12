@@ -1,9 +1,10 @@
 package mx.kenzie.argo;
 
-import mx.kenzie.argo.error.JsonException;
+import mx.kenzie.argo.meta.JsonException;
+import mx.kenzie.argo.meta.Name;
+import mx.kenzie.argo.meta.Optional;
 import sun.reflect.ReflectionFactory;
 
-import java.awt.*;
 import java.io.*;
 import java.lang.reflect.*;
 import java.nio.charset.Charset;
@@ -25,13 +26,6 @@ public class Json implements Closeable, AutoCloseable {
         EXPECTING_VALUE = 4,
         EXPECTING_END = 5,
         END = -1;
-    private static final byte
-        NULL = 0,
-        STRING = 1,
-        NUMBER = 2,
-        BOOLEAN = 3,
-        OBJECT = 4,
-        ARRAY = 5;
     
     protected transient java.io.Reader reader;
     protected transient Writer writer;
@@ -79,7 +73,7 @@ public class Json implements Closeable, AutoCloseable {
         return (Constructor<Type>) ReflectionFactory.getReflectionFactory().newConstructorForSerialization(type, shift);
     }
     
-    private <Type> Type createObject(Class<Type> type) {
+    protected <Type> Type createObject(Class<Type> type) {
         try {
             if (type.isLocalClass() || type.getEnclosingClass() != null) {
                 final Constructor<Type> constructor = this.createConstructor0(type);
@@ -127,7 +121,7 @@ public class Json implements Closeable, AutoCloseable {
     //</editor-fold>
     
     //<editor-fold desc="Writers" defaultstate="collapsed">
-    private void write(Object object, Class<?> type, Map<String, Object> map) {
+    protected void write(Object object, Class<?> type, Map<String, Object> map) {
         final Set<Field> fields = new HashSet<>();
         fields.addAll(List.of(type.getDeclaredFields()));
         fields.addAll(List.of(type.getFields()));
@@ -140,8 +134,11 @@ public class Json implements Closeable, AutoCloseable {
             if (!field.canAccess(object)) field.trySetAccessible();
             try {
                 final Object value = field.get(object);
+                if (value == null && field.isAnnotationPresent(Optional.class)) continue;
                 final Class<?> expected = field.getType();
-                final String key = field.getName();
+                final String key;
+                if (field.isAnnotationPresent(Name.class)) key = field.getAnnotation(Name.class).value();
+                else key = field.getName();
                 if (value == null) map.put(key, null);
                 else if (value instanceof String) map.put(key, value);
                 else if (value instanceof Number) map.put(key, value);
@@ -223,7 +220,7 @@ public class Json implements Closeable, AutoCloseable {
     
     //<editor-fold desc="Object Wrappers" defaultstate="collapsed">
     @SuppressWarnings("all")
-    private <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
+    protected <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
         final Set<Field> fields = new HashSet<>();
@@ -236,25 +233,38 @@ public class Json implements Closeable, AutoCloseable {
             if ((modifiers & 0x00000080) != 0) continue;
             if ((modifiers & 0x00001000) != 0) continue;
             if (!field.canAccess(object)) field.trySetAccessible();
-            if (!map.containsKey(field.getName())) continue;
-            final Object value = map.get(field.getName());
+            final String key;
+            if (field.isAnnotationPresent(Name.class)) key = field.getAnnotation(Name.class).value();
+            else key = field.getName();
+            if (!map.containsKey(key)) continue;
+            final Object value = map.get(key);
             final Class<?> expected = field.getType();
+            final Object lock;
+            if ((modifiers & 0x00000040) != 0) lock = object;
+            else lock = new Object();
             try {
-                if (value == null) field.set(object, null);
-                else if (expected.isAssignableFrom(value.getClass())) field.set(object, value);
-                else if (expected.isPrimitive() && value instanceof Number number) {
-                    if (expected == int.class) field.setInt(object, number.intValue());
-                    else if (expected == long.class) field.setLong(object, number.longValue());
-                    else if (expected == double.class) field.setDouble(object, number.doubleValue());
-                    else if (expected == float.class) field.setFloat(object, number.floatValue());
-                } else if (value instanceof Map<?, ?> child) {
-                    final Object sub = this.createObject(expected);
-                    field.set(object, sub);
-                    this.toObject(sub, expected, child);
-                } else if (expected.isArray() && value instanceof List<?> list) {
-                    final Object array = this.convertList(expected, list);
-                    field.set(object, array);
-                } else throw new JsonException("Value of '" + field.getName() + "' (" + object.getClass().getSimpleName() + ") could not be mapped to type " + expected.getSimpleName());
+                synchronized (lock) {
+                    if (expected.isPrimitive()) {
+                        if (value instanceof Boolean boo) field.setBoolean(object, boo.booleanValue());
+                        else if (value instanceof Number number) {
+                            if (expected == int.class) field.setInt(object, number.intValue());
+                            else if (expected == long.class) field.setLong(object, number.longValue());
+                            else if (expected == double.class) field.setDouble(object, number.doubleValue());
+                            else if (expected == float.class) field.setFloat(object, number.floatValue());
+                        }
+                    } else if (value == null) field.set(object, null);
+                    else if (expected.isAssignableFrom(value.getClass())) field.set(object, value);
+                    else if (value instanceof Map<?, ?> child) {
+                        final Object sub, existing = field.get(object);
+                        if (existing == null) field.set(object, sub = this.createObject(expected));
+                        else sub = existing;
+                        this.toObject(sub, expected, child);
+                    } else if (expected.isArray() && value instanceof List<?> list) {
+                        final Object array = this.convertList(expected, list);
+                        field.set(object, array);
+                    } else throw new JsonException("Value of '" + field.getName() + "' (" + object.getClass()
+                        .getSimpleName() + ") could not be mapped to type " + expected.getSimpleName());
+                }
             } catch (Throwable ex) {
                 throw new JsonException("Unable to write to object:", ex);
             }
@@ -266,7 +276,7 @@ public class Json implements Closeable, AutoCloseable {
     public <Type> Type toObject(Type object, Class<?> type) {
         assert object != null: "Object was null.";
         assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
-        final Map<String, Object> map = this.toMap();
+        final Map<String, Object> map = this.toMap(new HashMap<>());
         return this.toObject(object, type, map);
     }
     
@@ -307,7 +317,7 @@ public class Json implements Closeable, AutoCloseable {
     
     //<editor-fold desc="Readers" defaultstate="collapsed">
     public List<Object> toList() {
-        return this.toNewList(ArrayList::new);
+        return this.toList(new ArrayList<>());
     }
     
     public <Container extends List<Object>> Container toNewList(Supplier<Container> supplier) {
@@ -321,7 +331,7 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     public Map<String, Object> toMap() {
-        return this.toNewMap(HashMap::new);
+        return this.toMap(new HashMap<>());
     }
     
     public <Container extends Map<String, Object>> Container toNewMap(Supplier<Container> supplier) {
@@ -385,7 +395,7 @@ public class Json implements Closeable, AutoCloseable {
                     } else if (c == '{') {
                         this.reset();
                         final Json json = new Json(this.reader);
-                        final Map<String, Object> value = json.toMap();
+                        final Map<String, Object> value = json.toMap(new HashMap<>());
                         map.put(currentKey.toString(), value);
                         this.state = EXPECTING_END;
                         continue;
@@ -454,7 +464,7 @@ public class Json implements Closeable, AutoCloseable {
     
     public void write(Map<?, ?> map, String indent, int level) {
         if (writer == null) throw new JsonException("This Json controller has no writer.");
-        final boolean pretty = indent != null && !indent.isEmpty();
+        final boolean pretty = indent != null && !indent.isEmpty() && !map.isEmpty();
         this.writeChar('{');
         if (pretty) this.writeString(System.lineSeparator());
         level++;
@@ -528,6 +538,9 @@ public class Json implements Closeable, AutoCloseable {
     @Override
     public void close() {
         try {
+            this.state = 0;
+            this.currentValue = null;
+            this.currentKey = null;
             if (reader != null) reader.close();
             if (writer != null) this.writer.close();
         } catch (IOException ex) {
@@ -581,7 +594,7 @@ public class Json implements Closeable, AutoCloseable {
     
     public static Map<String, Object> fromJson(String string) {
         try (final Json json = new Json(string)) {
-            return json.toMap();
+            return json.toMap(new HashMap<>());
         }
     }
     
@@ -725,6 +738,27 @@ public class Json implements Closeable, AutoCloseable {
     }
     //</editor-fold>
     
+    @SuppressWarnings({"SameParameterValue", "TypeParameterHidesVisibleType"})
+    public static class JsonHelper extends Json {
+        
+        public JsonHelper() {
+            super("{}");
+        }
+        
+        public <Type> Type createObject(Class<Type> type) {
+            return super.createObject(type);
+        }
+        
+        public void mapToObject(Object object, Class<?> type, Map<?, ?> map) {
+            super.toObject(object, type, map);
+        }
+        
+        public void objectToMap(Object object, Class<?> type, Map<String, Object> map) {
+            super.write(object, type, map);
+        }
+        
+    }
+    
 }
 
 @SuppressWarnings({"TypeParameterHidesVisibleType", "SameParameterValue", "null"})
@@ -746,7 +780,7 @@ class JsonArray {
     }
     
     public void write(List<?> list, String indent, int level) {
-        final boolean pretty = indent != null && !indent.isEmpty();
+        final boolean pretty = indent != null && !indent.isEmpty() && !list.isEmpty();
         this.writeChar('[');
         if (pretty) this.writeString(System.lineSeparator());
         level++;
@@ -797,7 +831,7 @@ class JsonArray {
                     } else if (c == '{') {
                         this.reset();
                         final Json json = new Json(this.reader);
-                        final Map<String, Object> value = json.toMap();
+                        final Map<String, Object> value = json.toMap(new HashMap<>());
                         list.add(value);
                         this.state = EXPECTING_END;
                         continue;
