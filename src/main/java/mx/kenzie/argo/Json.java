@@ -1,5 +1,6 @@
 package mx.kenzie.argo;
 
+import mx.kenzie.argo.meta.Any;
 import mx.kenzie.argo.meta.JsonException;
 import mx.kenzie.argo.meta.Name;
 import mx.kenzie.argo.meta.Optional;
@@ -181,12 +182,12 @@ public class Json implements Closeable, AutoCloseable {
     
     //<editor-fold desc="Converters" defaultstate="collapsed">
     private Object convertSimple(Object data, Class<?> expected) {
-        if (data instanceof List<?> list) return this.convertList(expected, list);
+        if (data instanceof List<?> list) return this.convertList(expected, list, false);
         else if (data instanceof Map<?, ?> map) return this.toObject(this.createObject(expected), expected, map);
         else return data;
     }
     
-    private Object convertList(Class<?> type, List<?> list) {
+    private Object convertList(Class<?> type, List<?> list, boolean any) {
         final Class<?> component = type.getComponentType();
         final Object object = Array.newInstance(component, list.size());
         final Object[] objects = list.toArray();
@@ -211,7 +212,10 @@ public class Json implements Closeable, AutoCloseable {
             final Object[] array = (Object[]) object;
             for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
-                array[i] = this.convertSimple(value, component);
+                final Class<?> target;
+                if (any) target = value.getClass();
+                else target = component;
+                array[i] = this.convertSimple(value, target);
             }
         }
         return object;
@@ -258,9 +262,12 @@ public class Json implements Closeable, AutoCloseable {
                         final Object sub, existing = field.get(object);
                         if (existing == null) field.set(object, sub = this.createObject(expected));
                         else sub = existing;
-                        this.toObject(sub, expected, child);
+                        final Class<?> target;
+                        if (field.isAnnotationPresent(Any.class)) target = object.getClass();
+                        else target = expected;
+                        this.toObject(sub, target, child);
                     } else if (expected.isArray() && value instanceof List<?> list) {
-                        final Object array = this.convertList(expected, list);
+                        final Object array = this.convertList(expected, list, field.isAnnotationPresent(Any.class));
                         field.set(object, array);
                     } else throw new JsonException("Value of '" + field.getName() + "' (" + object.getClass()
                         .getSimpleName() + ") could not be mapped to type " + expected.getSimpleName());
@@ -308,7 +315,7 @@ public class Json implements Closeable, AutoCloseable {
         final Container container;
         if (Array.getLength(array) < 1) container = (Container) Array.newInstance(component, list.size());
         else container = array;
-        final Object source = this.convertList(container.getClass(), list);
+        final Object source = this.convertList(container.getClass(), list, false);
         final int a = Array.getLength(container), b = Array.getLength(source);
         System.arraycopy(source, 0, container, 0, Math.min(a, b));
         return container;
