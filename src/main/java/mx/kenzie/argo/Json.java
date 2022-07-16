@@ -13,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static mx.kenzie.argo.Json.*;
 
@@ -98,7 +100,7 @@ public class Json implements Closeable, AutoCloseable {
         if (value instanceof Boolean) return value;
         if (value.getClass().isArray()) {
             final List<Object> list = new ArrayList<>();
-            this.deconstructArray(value, component, list);
+            this.deconstructArray(value, component.getComponentType(), list, false);
             return list;
         }
         final Map<String, Object> map = new HashMap<>();
@@ -106,8 +108,7 @@ public class Json implements Closeable, AutoCloseable {
         return map;
     }
     
-    private void deconstructArray(Object array, Class<?> type, List<Object> list) {
-        final Class<?> component = type.getComponentType();
+    private void deconstructArray(Object array, Class<?> component, List<Object> list, boolean any) {
         if (component.isPrimitive()) {
             if (array instanceof int[] numbers) for (int number : numbers) list.add(number);
             else if (array instanceof long[] numbers) for (long number : numbers) list.add(number);
@@ -116,7 +117,8 @@ public class Json implements Closeable, AutoCloseable {
             else if (array instanceof boolean[] numbers) for (boolean number : numbers) list.add(number);
         } else {
             final Object[] objects = (Object[]) array;
-            for (final Object object : objects) list.add(this.deconstructSimple(object, component));
+            if (any) for (final Object object : objects) list.add(this.deconstructSimple(object, object.getClass()));
+            else for (final Object object : objects) list.add(this.deconstructSimple(object, component));
         }
     }
     //</editor-fold>
@@ -148,11 +150,14 @@ public class Json implements Closeable, AutoCloseable {
                 else if (expected.isArray()) {
                     final List<Object> child = new ArrayList<>();
                     map.put(key, child);
-                    this.deconstructArray(value, expected, child);
+                    this.deconstructArray(value, expected.getComponentType(), child, field.isAnnotationPresent(Any.class));
                 } else {
                     final Map<String, Object> child = new HashMap<>();
                     map.put(key, child);
-                    this.write(value, expected, child);
+                    final Class<?> target;
+                    if (field.isAnnotationPresent(Any.class)) target = value.getClass();
+                    else target = expected;
+                    this.write(value, target, child);
                 }
             } catch (Throwable ex) {
                 throw new JsonException("Unable to write to object:", ex);
@@ -182,12 +187,12 @@ public class Json implements Closeable, AutoCloseable {
     
     //<editor-fold desc="Converters" defaultstate="collapsed">
     private Object convertSimple(Object data, Class<?> expected) {
-        if (data instanceof List<?> list) return this.convertList(expected, list, false);
+        if (data instanceof List<?> list) return this.convertList(expected, list);
         else if (data instanceof Map<?, ?> map) return this.toObject(this.createObject(expected), expected, map);
         else return data;
     }
     
-    private Object convertList(Class<?> type, List<?> list, boolean any) {
+    private Object convertList(Class<?> type, List<?> list) {
         final Class<?> component = type.getComponentType();
         final Object object = Array.newInstance(component, list.size());
         final Object[] objects = list.toArray();
@@ -212,10 +217,7 @@ public class Json implements Closeable, AutoCloseable {
             final Object[] array = (Object[]) object;
             for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
-                final Class<?> target;
-                if (any) target = value.getClass();
-                else target = component;
-                array[i] = this.convertSimple(value, target);
+                array[i] = this.convertSimple(value, component);
             }
         }
         return object;
@@ -262,12 +264,9 @@ public class Json implements Closeable, AutoCloseable {
                         final Object sub, existing = field.get(object);
                         if (existing == null) field.set(object, sub = this.createObject(expected));
                         else sub = existing;
-                        final Class<?> target;
-                        if (field.isAnnotationPresent(Any.class)) target = object.getClass();
-                        else target = expected;
-                        this.toObject(sub, target, child);
+                        this.toObject(sub, expected, child);
                     } else if (expected.isArray() && value instanceof List<?> list) {
-                        final Object array = this.convertList(expected, list, field.isAnnotationPresent(Any.class));
+                        final Object array = this.convertList(expected, list);
                         field.set(object, array);
                     } else throw new JsonException("Value of '" + field.getName() + "' (" + object.getClass()
                         .getSimpleName() + ") could not be mapped to type " + expected.getSimpleName());
@@ -315,7 +314,7 @@ public class Json implements Closeable, AutoCloseable {
         final Container container;
         if (Array.getLength(array) < 1) container = (Container) Array.newInstance(component, list.size());
         else container = array;
-        final Object source = this.convertList(container.getClass(), list, false);
+        final Object source = this.convertList(container.getClass(), list);
         final int a = Array.getLength(container), b = Array.getLength(source);
         System.arraycopy(source, 0, container, 0, Math.min(a, b));
         return container;
@@ -489,7 +488,7 @@ public class Json implements Closeable, AutoCloseable {
             this.writeString("\": ");
             final Object value = entry.getValue();
             if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
-            else if (value instanceof String string) this.writeString( '"' + string + '"');
+            else if (value instanceof String string) this.writeString( '"' + this.sanitise(string) + '"');
             else if (value == null) this.writeString("null");
             else if (value instanceof Map<?,?> child) new Json(writer).write(child, indent, level);
             else if (value instanceof List<?> child) new JsonArray(writer).write(child, indent, level);
@@ -498,6 +497,24 @@ public class Json implements Closeable, AutoCloseable {
         if (pretty) this.writeString(System.lineSeparator());
         if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
         this.writeChar('}');
+    }
+    
+    private final Pattern pattern = Pattern.compile("\\\\(.)");
+    private String sanitise(String string) {
+        final Matcher matcher = pattern.matcher(string);
+        int index = 0;
+        while (matcher.find(index)) {
+            index = string.indexOf(matcher.group() + 1);
+            string = string.replace(matcher.group(), "\\\\" + matcher.group(1));
+        }
+        
+        return string
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+            .replace("\s", "\\s")
+            .replace("\b", "\\b")
+            .replace("\f", "\\f");
     }
     //</editor-fold>
     
@@ -698,8 +715,17 @@ public class Json implements Closeable, AutoCloseable {
                     if (c == '\\' && !escape) escape = true;
                     else if (c == '"' && !escape) return builder.toString();
                     else {
-                        this.builder.append(c);
-                        if (escape) escape = false;
+                        if (escape) {
+                            switch (c) {
+                                case 'n' -> this.builder.append('\n');
+                                case 'r' -> this.builder.append('\r');
+                                case 't' -> this.builder.append('\t');
+                                case 'f' -> this.builder.append('\f');
+                                case 'b' -> this.builder.append('\b');
+                                default -> this.builder.append(c);
+                            }
+                            escape = false;
+                        } else this.builder.append(c);
                     }
                 }
             } catch (EOFException ex) {

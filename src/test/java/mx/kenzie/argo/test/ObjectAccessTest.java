@@ -1,6 +1,7 @@
 package mx.kenzie.argo.test;
 
 import mx.kenzie.argo.Json;
+import mx.kenzie.argo.meta.Any;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -152,6 +153,26 @@ public class ObjectAccessTest {
         assert result != null;
         assert result.length == 3;
         assert result[1] == 3;
+    }
+    
+    @Test
+    public void readAnySubType() {
+        class Bean { }
+        class Child extends Bean { int number = 5; }
+        class Result { final @Any Bean child = new Child(); }
+        final String string = Json.toJson(new Result());
+        assert string != null;
+        assert string.equals("{\"child\": {\"number\": 5}}"): string;
+    }
+    
+    @Test
+    public void writeAnySubType() {
+        class Bean { }
+        class Child extends Bean { int number = 5; }
+        class Result { final @Any Bean child = new Child(); }
+        final String string = Json.toJson(new Result());
+        assert string != null;
+        assert string.equals("{\"child\": {\"number\": 5}}"): string;
     }
     
     @Test

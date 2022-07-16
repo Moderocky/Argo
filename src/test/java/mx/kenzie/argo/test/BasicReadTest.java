@@ -225,4 +225,14 @@ public class BasicReadTest {
         }
     }
     
+    @Test
+    public void escapes() {
+        class Result { String hello; }
+        final String string = "{\"hello\": \"there\\ngeneral\\tkenobi\"}";
+        final Result result = Json.fromJson(string, new Result());
+        assert result != null;
+        assert result.hello != null;
+        assert result.hello.equals("there\ngeneral\tkenobi"): result.hello;
+    }
+    
 }

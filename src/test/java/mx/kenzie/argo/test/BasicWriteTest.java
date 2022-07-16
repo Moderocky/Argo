@@ -131,4 +131,11 @@ public class BasicWriteTest {
             }"""): string;
     }
     
+    @Test
+    public void escapes() {
+        class Result { String hello = "there\ngeneral\tkenobi"; }
+        final String string = Json.toJson(new Result());
+        assert string.equals("{\"hello\": \"there\\ngeneral\\tkenobi\"}"): string;
+    }
+    
 }
