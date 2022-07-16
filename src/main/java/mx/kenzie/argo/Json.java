@@ -509,10 +509,10 @@ public class Json implements Closeable, AutoCloseable {
         }
         
         return string
+            .replace("\"", "\\\"")
             .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t")
-            .replace("\s", "\\s")
             .replace("\b", "\\b")
             .replace("\f", "\\f");
     }
