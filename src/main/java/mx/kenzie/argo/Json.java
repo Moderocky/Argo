@@ -322,6 +322,32 @@ public class Json implements Closeable, AutoCloseable {
     //</editor-fold>
     
     //<editor-fold desc="Readers" defaultstate="collapsed">
+    public boolean willBeMap() {
+        char c;
+        while (true) {
+            this.mark(4);
+            c = this.readChar();
+            if (c <= 32 || c == 160) continue;
+            break;
+        }
+        this.reset();
+        return c == '{';
+    
+    }
+    
+    public Object toSomething() {
+        char c;
+        while (true) {
+            this.mark(4);
+            c = this.readChar();
+            if (c <= 32 || c == 160) continue;
+            break;
+        }
+        this.reset();
+        if (c == '[') return this.toList();
+        return this.toMap();
+    }
+    
     public List<Object> toList() {
         return this.toList(new ArrayList<>());
     }
