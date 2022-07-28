@@ -371,6 +371,7 @@ public class Json implements Closeable, AutoCloseable {
         return this.toMap(map);
     }
     
+    protected static final Pattern CODE_POINT = Pattern.compile("\\\\u\\w{4}");
     public <Container extends Map<String, Object>> Container toMap(final Container map) {
         if (reader == null) throw new JsonException("This Json controller has no reader.");
         loop: while (this.state != END) {
@@ -420,8 +421,11 @@ public class Json implements Closeable, AutoCloseable {
                     assert currentKey.length() > 0;
                     if (c == '"') {
                         this.currentValue = new StringBuilder();
-                        final Object value = new StringReader(reader, currentValue).read();
-                        map.put(currentKey.toString(), value);
+                        final String value = (String) new StringReader(reader, currentValue).read();
+                        if (value.contains("\\u")) {
+                            final String converted = CODE_POINT.matcher(value).replaceAll(result -> Json.codeToChar(result.group()));
+                            map.put(currentKey.toString(), converted);
+                        } else map.put(currentKey.toString(), value);
                         this.state = EXPECTING_END;
                         continue;
                     } else if (c == '{') {
@@ -533,18 +537,34 @@ public class Json implements Closeable, AutoCloseable {
             index = string.indexOf(matcher.group() + 1);
             string = string.replace(matcher.group(), "\\\\" + matcher.group(1));
         }
-        
-        return string
+        final String part = string
             .replace("\"", "\\\"")
             .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t")
             .replace("\b", "\\b")
             .replace("\f", "\\f");
+        return Json.charToCode(part);
     }
     //</editor-fold>
     
     //<editor-fold desc="Helpers" defaultstate="collapsed">
+    protected static String charToCode(Object object) {
+        final StringBuilder builder = new StringBuilder();
+        for (final char c : object.toString().toCharArray()) {
+            if (c >= 128) builder.append("\\u").append(String.format("%04X", (int) c));
+            else builder.append(c);
+        }
+        return builder.toString();
+    }
+    
+    protected static String codeToChar(Object object) {
+        final String string = object.toString();
+        final int point = Integer.parseInt(string.substring(2),16);
+        final char[] characters = Character.toChars(point);
+        return new String(characters);
+    }
+    
     protected void mark(int chars) {
         try {
             this.reader.mark(chars);
@@ -748,6 +768,7 @@ public class Json implements Closeable, AutoCloseable {
                                 case 't' -> this.builder.append('\t');
                                 case 'f' -> this.builder.append('\f');
                                 case 'b' -> this.builder.append('\b');
+                                case 'u' -> this.builder.append("\\u");
                                 default -> this.builder.append(c);
                             }
                             escape = false;
@@ -883,8 +904,11 @@ class JsonArray {
                     assert currentValue == null;
                     if (c == '"') {
                         this.currentValue = new StringBuilder();
-                        final Object value = new Json.StringReader(reader, currentValue).read();
-                        list.add(value);
+                        final String value = (String) new Json.StringReader(reader, currentValue).read();
+                        if (value.contains("\\u")) {
+                            final String converted = CODE_POINT.matcher(value).replaceAll(result -> Json.codeToChar(result.group()));
+                            list.add(converted);
+                        } else list.add(value);
                         this.state = EXPECTING_END;
                         continue;
                     } else if (c == '{') {
