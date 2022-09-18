@@ -10,10 +10,11 @@ import java.io.*;
 import java.lang.reflect.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static mx.kenzie.argo.Json.*;
@@ -217,7 +218,7 @@ public class Json implements Closeable, AutoCloseable {
             final Object[] array = (Object[]) object;
             for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
-                array[i] = this.convertSimple(value, component);
+                array[i] = component.cast(this.convertSimple(value, component));
             }
         }
         return object;
@@ -499,6 +500,8 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     public void write(Map<?, ?> map, String indent, int level) {
+        final DecimalFormat format = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
+        format.setMaximumFractionDigits(340);
         if (writer == null) throw new JsonException("This Json controller has no writer.");
         final boolean pretty = indent != null && !indent.isEmpty() && !map.isEmpty();
         this.writeChar('{');
@@ -517,7 +520,8 @@ public class Json implements Closeable, AutoCloseable {
             this.writeString(entry.getKey().toString());
             this.writeString("\": ");
             final Object value = entry.getValue();
-            if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
+            if (value instanceof Double d) this.writeString(format.format(d));
+            else if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
             else if (value instanceof String string) this.writeString( '"' + this.sanitise(string) + '"');
             else if (value == null) this.writeString("null");
             else if (value instanceof Map<?,?> child) new Json(writer).write(child, indent, level);
@@ -529,14 +533,14 @@ public class Json implements Closeable, AutoCloseable {
         this.writeChar('}');
     }
     
-    private final Pattern pattern = Pattern.compile("\\\\(.)");
+//    private final Pattern pattern = Pattern.compile("\\\\(.)");
     private String sanitise(String string) {
-        final Matcher matcher = pattern.matcher(string);
-        int index = 0;
-        while (matcher.find(index)) {
-            index = string.indexOf(matcher.group() + 1);
-            string = string.replace(matcher.group(), "\\\\" + matcher.group(1));
-        }
+//        final Matcher matcher = pattern.matcher(string);
+//        int index = 0;
+//        while (matcher.find(index)) {
+//            index = string.indexOf(matcher.group() + 1);
+//            string = string.replace(matcher.group(), "\\\\" + matcher.group(1));
+//        }
         final String part = string
             .replace("\"", "\\\"")
             .replace("\n", "\\n")

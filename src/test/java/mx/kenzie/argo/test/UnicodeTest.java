@@ -20,11 +20,11 @@ public class UnicodeTest {
     
     @Test
     public void second() {
-        System.out.println("hello there" + (char) 8);
         final Map<String, Object> map = new HashMap<>();
         map.put("hello", "Test \u001b Test");
+        map.put("there", "Test \\u001b Test");
         final String json = Json.toJson(map);
-        System.out.println(json);
+        assert json.equals("{\"there\": \"Test \\u001b Test\",\"hello\": \"Test \u001B Test\"}"): json;
         final Map<String, Object> result = Json.fromJson(json);
         assert result.get("hello").equals(map.get("hello"));
     }
