@@ -168,7 +168,7 @@ public class ObjectAccessTest {
     @Test
     public void writeAnySubType() {
         class Bean { }
-        class Child extends Bean { int number = 5; }
+        class Child extends Bean { final int number = 5; }
         class Result { final @Any Bean child = new Child(); }
         final String string = Json.toJson(new Result());
         assert string != null;
