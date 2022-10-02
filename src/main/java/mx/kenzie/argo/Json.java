@@ -631,7 +631,6 @@ public class Json implements Closeable, AutoCloseable {
         json.write(object, object.getClass(), map);
         final List<String> list = List.of(keys);
         map.keySet().removeIf(key -> !list.contains(key));
-        for (final String key : keys) map.putIfAbsent(key, null);
         new Json(writer).write(map, indent, 0);
         return writer.toString();
     }
