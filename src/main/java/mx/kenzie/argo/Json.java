@@ -624,6 +624,18 @@ public class Json implements Closeable, AutoCloseable {
     //</editor-fold>
     
     //<editor-fold desc="Static Helper Methods" defaultstate="collapsed">
+    public static String toJson(Object object, String indent, String... keys) {
+        final StringWriter writer = new StringWriter();
+        final Json json = new Json(writer);
+        final Map<String, Object> map = new LinkedHashMap<>();
+        json.write(object, object.getClass(), map);
+        final List<String> list = List.of(keys);
+        map.keySet().removeIf(key -> !list.contains(key));
+        for (final String key : keys) map.putIfAbsent(key, null);
+        new Json(writer).write(map, indent, 0);
+        return writer.toString();
+    }
+    
     public static String toJson(Object object, Class<?> type, String indent) {
         final StringWriter writer = new StringWriter();
         new Json(writer).write(object, type, indent);
