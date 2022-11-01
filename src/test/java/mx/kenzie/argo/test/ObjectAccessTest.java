@@ -8,10 +8,6 @@ import java.util.Arrays;
 
 public class ObjectAccessTest {
     
-    public static final class Simple {
-        public String hello = null;
-    }
-    
     @Test
     public void simple() {
         final String string = """
@@ -25,7 +21,9 @@ public class ObjectAccessTest {
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void inner() {
-        class Result { String hello = null; }
+        class Result {
+            String hello = null;
+        }
         final String string = """
             { "hello": "there" }
             """;
@@ -36,7 +34,9 @@ public class ObjectAccessTest {
     
     @Test
     public void primitive() {
-        class Result { int a, b; }
+        class Result {
+            int a, b;
+        }
         final String string = """
             { "a": 1, "b": 6 }
             """;
@@ -48,77 +48,100 @@ public class ObjectAccessTest {
     
     @Test
     public void mixed() {
-        class Result { int a, b; String hello; }
+        class Result {
+            int a, b;
+            String hello;
+        }
         final String string = """
             { "a": 1, "b": 6, "hello": "there" }
             """;
         final Result result = Json.fromJson(string, new Result());
         assert result != null;
-        assert result.a == 1: result.a;
-        assert result.b == 6: result.b;
-        assert result.hello.equals("there"): result.hello;
+        assert result.a == 1 : result.a;
+        assert result.b == 6 : result.b;
+        assert result.hello.equals("there") : result.hello;
     }
     
     @Test
     public void reverse() {
-        class Result { int a = 3, b; String hello; }
+        class Result {
+            int a = 3, b;
+            String hello;
+        }
         final Result result = new Result();
         result.a--;
         result.hello = "there";
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"a\": 2,\"b\": 0,\"hello\": \"there\"}"): string;
+        assert string.equals("{\"a\": 2,\"b\": 0,\"hello\": \"there\"}") : string;
     }
     
     @Test
     public void children() {
-        class Child { int bean; }
-        class Result { String hello; Child child; }
+        class Child {
+            int bean;
+        }
+        class Result {
+            String hello;
+            Child child;
+        }
         final String string = """
             { "hello": "there", "child": { "bean": 5 } }
             """;
         final Result result = Json.fromJson(string, new Result());
         assert result != null;
-        assert result.hello.equals("there"): result.hello;
+        assert result.hello.equals("there") : result.hello;
         assert result.child != null;
-        assert result.child.bean == 5: result.child.bean;
+        assert result.child.bean == 5 : result.child.bean;
     }
     
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void reverseChildren() {
-        class Child { int bean = 3; }
-        class Result { String hello = "there"; Child child = new Child(); }
+        class Child {
+            int bean = 3;
+        }
+        class Result {
+            String hello = "there";
+            Child child = new Child();
+        }
         final Result result = new Result();
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"hello\": \"there\",\"child\": {\"bean\": 3}}"): string;
+        assert string.equals("{\"hello\": \"there\",\"child\": {\"bean\": 3}}") : string;
     }
     
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void simpleArrayTest() {
-        class Result { String hello = "there"; int[] numbers = {5, 6, 7};  }
+        class Result {
+            String hello = "there";
+            int[] numbers = {5, 6, 7};
+        }
         final Result result = new Result();
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"numbers\": [5,6,7],\"hello\": \"there\"}"): string;
+        assert string.equals("{\"numbers\": [5,6,7],\"hello\": \"there\"}") : string;
         final Result test = Json.fromJson(string, new Result());
         assert test != null;
-        assert test.hello.equals(result.hello): test.hello;
-        assert Arrays.equals(test.numbers, result.numbers): test.numbers;
+        assert test.hello.equals(result.hello) : test.hello;
+        assert Arrays.equals(test.numbers, result.numbers) : test.numbers;
     }
     
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void complexArrayTest() {
-        class Child { int a = 1; }
-        class Result { Child[] children = { new Child(), new Child() }; }
+        class Child {
+            int a = 1;
+        }
+        class Result {
+            Child[] children = {new Child(), new Child()};
+        }
         final Result result = new Result();
         result.children[0].a = 2;
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"children\": [{\"a\": 2},{\"a\": 1}]}"): string;
+        assert string.equals("{\"children\": [{\"a\": 2},{\"a\": 1}]}") : string;
         final Result test = Json.fromJson(string, new Result());
         assert test != null;
         assert test.children != null;
@@ -130,8 +153,12 @@ public class ObjectAccessTest {
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void arrayFromData() {
-        class Child { int a; }
-        class Result { Child[] children; }
+        class Child {
+            int a;
+        }
+        class Result {
+            Child[] children;
+        }
         final String string = """
             { "children": [ { "a": 5 }, { "a": 3 } ] }
             """;
@@ -157,36 +184,53 @@ public class ObjectAccessTest {
     
     @Test
     public void readAnySubType() {
-        class Bean { }
-        class Child extends Bean { int number = 5; }
-        class Result { final @Any Bean child = new Child(); }
+        class Bean {}
+        class Child extends Bean {
+            final int number = 5;
+        }
+        class Result {
+            final @Any Bean child = new Child();
+        }
         final String string = Json.toJson(new Result());
         assert string != null;
-        assert string.equals("{\"child\": {\"number\": 5}}"): string;
+        assert string.equals("{\"child\": {\"number\": 5}}") : string;
     }
     
     @Test
     public void writeAnySubType() {
-        class Bean { }
-        class Child extends Bean { final int number = 5; }
-        class Result { final @Any Bean child = new Child(); }
+        class Bean {}
+        class Child extends Bean {
+            final int number = 5;
+        }
+        class Result {
+            final @Any Bean child = new Child();
+        }
         final String string = Json.toJson(new Result());
         assert string != null;
-        assert string.equals("{\"child\": {\"number\": 5}}"): string;
+        assert string.equals("{\"child\": {\"number\": 5}}") : string;
     }
     
     @Test
     public void existingMesh() {
-        class Child { int foo, bar = 6; }
-        class Result { final Child child = new Child(); }
+        class Child {
+            int foo;
+            final int bar = 6;
+        }
+        class Result {
+            final Child child = new Child();
+        }
         final String string = """
             { "hello": "there", "child": { "foo": 1 } }
             """;
         final Result result = Json.fromJson(string, new Result());
         assert result != null;
-        assert result.child.foo == 1: result.child.foo;
-        assert result.child.bar == 6: result.child.bar;
+        assert result.child.foo == 1 : result.child.foo;
+        assert result.child.bar == 6 : result.child.bar;
         
+    }
+    
+    public static final class Simple {
+        public String hello = null;
     }
     
 }

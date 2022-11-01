@@ -14,7 +14,7 @@ public class BasicWriteTest {
     public void simple() {
         final Map<String, Object> start = new HashMap<>();
         final String string = Json.toJson(start);
-        assert string.equals("{}"): string;
+        assert string.equals("{}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -26,7 +26,7 @@ public class BasicWriteTest {
         final Map<String, Object> start = new HashMap<>();
         start.put("hello", "there");
         final String string = Json.toJson(start);
-        assert string.equals("{\"hello\": \"there\"}"): string;
+        assert string.equals("{\"hello\": \"there\"}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -39,7 +39,7 @@ public class BasicWriteTest {
         start.put("hello", "there");
         start.put("general", "kenobi");
         final String string = Json.toJson(start);
-        assert string.equals("{\"general\": \"kenobi\",\"hello\": \"there\"}"): string;
+        assert string.equals("{\"general\": \"kenobi\",\"hello\": \"there\"}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -55,7 +55,7 @@ public class BasicWriteTest {
         start.put("c", null);
         start.put("d", true);
         final String string = Json.toJson(start);
-        assert string.equals("{\"a\": 1,\"b\": -12.5,\"c\": null,\"d\": true,\"hello\": \"there\"}"): string;
+        assert string.equals("{\"a\": 1,\"b\": -12.5,\"c\": null,\"d\": true,\"hello\": \"there\"}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -74,7 +74,7 @@ public class BasicWriteTest {
         list.add("bean");
         start.put("list", list);
         final String string = Json.toJson(start);
-        assert string.equals("{\"hello\": \"there\",\"list\": [12,\"bean\"],\"child\": {\"hello\": \"there\"}}"): string;
+        assert string.equals("{\"hello\": \"there\",\"list\": [12,\"bean\"],\"child\": {\"hello\": \"there\"}}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -85,7 +85,7 @@ public class BasicWriteTest {
     public void simpleList() {
         final List<Object> start = new ArrayList<>();
         final String string = Json.toJson(start);
-        assert string.equals("[]"): string;
+        assert string.equals("[]") : string;
         try (final Json json = new Json(string)) {
             final List<Object> end = json.toList();
             assert start.equals(end);
@@ -99,7 +99,7 @@ public class BasicWriteTest {
         start.add(null);
         start.add(23);
         final String string = Json.toJson(start);
-        assert string.equals("[\"beans\",null,23]"): string;
+        assert string.equals("[\"beans\",null,23]") : string;
         try (final Json json = new Json(string)) {
             final List<Object> end = json.toList();
             assert start.equals(end);
@@ -128,14 +128,16 @@ public class BasicWriteTest {
               "child": {
                 "hello": "there"
               }
-            }"""): string;
+            }""") : string;
     }
     
     @Test
     public void escapes() {
-        class Result { String hello = "there\ngeneral\tkenobi"; }
+        class Result {
+            final String hello = "there\ngeneral\tkenobi";
+        }
         final String string = Json.toJson(new Result());
-        assert string.equals("{\"hello\": \"there\\ngeneral\\tkenobi\"}"): string;
+        assert string.equals("{\"hello\": \"there\\ngeneral\\tkenobi\"}") : string;
     }
     
 }

@@ -1,19 +1,20 @@
 package mx.kenzie.argo;
 
-import mx.kenzie.argo.meta.Any;
-import mx.kenzie.argo.meta.JsonException;
-import mx.kenzie.argo.meta.Name;
 import mx.kenzie.argo.meta.Optional;
+import mx.kenzie.argo.meta.*;
 import sun.reflect.ReflectionFactory;
 
+import java.io.Reader;
 import java.io.*;
-import java.lang.reflect.*;
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.*;
-import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -40,18 +41,19 @@ public class Json implements Closeable, AutoCloseable {
     public Json(java.io.Reader reader) {
         this.reader = reader;
     }
-
+    
     public Json(String string) {
         this(string, StandardCharsets.UTF_8);
     }
-
+    
     public Json(String string, Charset charset) {
         this(new ByteArrayInputStream(string.getBytes(charset)));
     }
+    
     public Json(InputStream reader) {
         this.reader = new BufferedReader(new InputStreamReader(reader));
     }
-
+    
     public Json(File file) {
         try {
             this.reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
@@ -60,11 +62,11 @@ public class Json implements Closeable, AutoCloseable {
             throw new JsonException(e);
         }
     }
-
+    
     public Json(OutputStream stream) {
         this.writer = new OutputStreamWriter(stream);
     }
-
+    
     public Json(java.io.Writer writer) {
         this.writer = writer;
     }
@@ -89,7 +91,8 @@ public class Json implements Closeable, AutoCloseable {
                 assert result || constructor.canAccess(null);
                 return constructor.newInstance();
             }
-        } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException |
+                 NoSuchMethodException e) {
             throw new JsonException("Unable to create '" + type.getSimpleName() + "' object.", e);
         }
     }
@@ -143,7 +146,9 @@ public class Json implements Closeable, AutoCloseable {
                 final String key;
                 if (field.isAnnotationPresent(Name.class)) key = field.getAnnotation(Name.class).value();
                 else key = field.getName();
-                if (value == null) map.put(key, null);
+                if (key.equals("__data")) continue;
+                if (field.isAnnotationPresent(Present.class) && value instanceof Boolean boo && boo) map.put(key, null);
+                else if (value == null) map.put(key, null);
                 else if (value instanceof String) map.put(key, value);
                 else if (value instanceof Number) map.put(key, value);
                 else if (value instanceof Boolean) map.put(key, value);
@@ -168,8 +173,8 @@ public class Json implements Closeable, AutoCloseable {
     
     @SuppressWarnings("all")
     public void write(Object object, Class<?> type, String indent) {
-        assert object != null: "Object was null.";
-        assert object instanceof Class<?> ^ true: "Classes cannot be read from.";
+        assert object != null : "Object was null.";
+        assert object instanceof Class<?> ^ true : "Classes cannot be read from.";
         final Map<String, Object> map = new HashMap<>();
         this.write(object, type, map);
         this.write(map, indent, 0);
@@ -201,16 +206,20 @@ public class Json implements Closeable, AutoCloseable {
             if (component == boolean.class) for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
                 Array.setBoolean(object, i, (boolean) value);
-            } else if (component == int.class) for (int i = 0; i < objects.length; i++) {
+            }
+            else if (component == int.class) for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
                 Array.setInt(object, i, ((Number) value).intValue());
-            } else if (component == long.class) for (int i = 0; i < objects.length; i++) {
+            }
+            else if (component == long.class) for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
                 Array.setLong(object, i, ((Number) value).longValue());
-            } else if (component == double.class) for (int i = 0; i < objects.length; i++) {
+            }
+            else if (component == double.class) for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
                 Array.setDouble(object, i, ((Number) value).doubleValue());
-            } else if (component == float.class) for (int i = 0; i < objects.length; i++) {
+            }
+            else if (component == float.class) for (int i = 0; i < objects.length; i++) {
                 final Object value = objects[i];
                 Array.setFloat(object, i, ((Number) value).floatValue());
             }
@@ -228,8 +237,8 @@ public class Json implements Closeable, AutoCloseable {
     //<editor-fold desc="Object Wrappers" defaultstate="collapsed">
     @SuppressWarnings("all")
     protected <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
-        assert object != null: "Object was null.";
-        assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
+        assert object != null : "Object was null.";
+        assert object instanceof Class<?> ^ true : "Classes cannot be written to.";
         final Set<Field> fields = new HashSet<>();
         fields.addAll(List.of(type.getDeclaredFields()));
         fields.addAll(List.of(type.getFields()));
@@ -243,6 +252,13 @@ public class Json implements Closeable, AutoCloseable {
             final String key;
             if (field.isAnnotationPresent(Name.class)) key = field.getAnnotation(Name.class).value();
             else key = field.getName();
+            if (key.equals("__data")) try {
+                assert Map.class.isAssignableFrom(field.getType()) : "Dataset field must accept map.";
+                field.set(object, map);
+                continue;
+            } catch (IllegalAccessException ex) {
+                throw new JsonException("Unable to store dataset object.", ex);
+            }
             if (!map.containsKey(key)) continue;
             final Object value = map.get(key);
             final Class<?> expected = field.getType();
@@ -250,6 +266,10 @@ public class Json implements Closeable, AutoCloseable {
             if ((modifiers & 0x00000040) != 0) lock = object;
             else lock = new Object();
             try {
+                if (field.isAnnotationPresent(Present.class)) {
+                    field.setBoolean(object, true);
+                    continue;
+                }
                 synchronized (lock) {
                     if (expected.isPrimitive()) {
                         if (value instanceof Boolean boo) field.setBoolean(object, boo.booleanValue());
@@ -276,19 +296,20 @@ public class Json implements Closeable, AutoCloseable {
                 throw new JsonException("Unable to write to object:", ex);
             }
         }
+        
         return object;
     }
     
     @SuppressWarnings({"all"})
     public <Type> Type toObject(Type object, Class<?> type) {
-        assert object != null: "Object was null.";
-        assert object instanceof Class<?> ^ true: "Classes cannot be written to.";
+        assert object != null : "Object was null.";
+        assert object instanceof Class<?> ^ true : "Classes cannot be written to.";
         final Map<String, Object> map = this.toMap(new HashMap<>());
         return this.toObject(object, type, map);
     }
     
     public <Type> Type toObject(Type object) {
-        assert object != null: "Object was null.";
+        assert object != null : "Object was null.";
         return this.toObject(object, object.getClass());
     }
     
@@ -333,7 +354,7 @@ public class Json implements Closeable, AutoCloseable {
         }
         this.reset();
         return c == '{';
-    
+        
     }
     
     public Object toSomething() {
@@ -373,12 +394,14 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     protected static final Pattern CODE_POINT = Pattern.compile("\\\\u\\w{4}");
+    
     public <Container extends Map<String, Object>> Container toMap(final Container map) {
         if (reader == null) throw new JsonException("This Json controller has no reader.");
-        loop: while (this.state != END) {
+        loop:
+        while (this.state != END) {
             this.mark(4);
             final char c = this.readChar();
-            state: switch (state) {
+            switch (state) {
                 case START:
                     if (c == '{') {
                         this.state = EXPECTING_KEY;
@@ -424,7 +447,8 @@ public class Json implements Closeable, AutoCloseable {
                         this.currentValue = new StringBuilder();
                         final String value = (String) new StringReader(reader, currentValue).read();
                         if (value.contains("\\u")) {
-                            final String converted = CODE_POINT.matcher(value).replaceAll(result -> Json.codeToChar(result.group()));
+                            final String converted = CODE_POINT.matcher(value)
+                                .replaceAll(result -> Json.codeToChar(result.group()));
                             map.put(currentKey.toString(), converted);
                         } else map.put(currentKey.toString(), value);
                         this.state = EXPECTING_END;
@@ -522,9 +546,9 @@ public class Json implements Closeable, AutoCloseable {
             final Object value = entry.getValue();
             if (value instanceof Double d) this.writeString(format.format(d));
             else if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
-            else if (value instanceof String string) this.writeString( '"' + this.sanitise(string) + '"');
+            else if (value instanceof String string) this.writeString('"' + this.sanitise(string) + '"');
             else if (value == null) this.writeString("null");
-            else if (value instanceof Map<?,?> child) new Json(writer).write(child, indent, level);
+            else if (value instanceof Map<?, ?> child) new Json(writer).write(child, indent, level);
             else if (value instanceof List<?> child) new JsonArray(writer).write(child, indent, level);
         }
         level--;
@@ -533,7 +557,7 @@ public class Json implements Closeable, AutoCloseable {
         this.writeChar('}');
     }
     
-//    private final Pattern pattern = Pattern.compile("\\\\(.)");
+    //    private final Pattern pattern = Pattern.compile("\\\\(.)");
     private String sanitise(String string) {
 //        final Matcher matcher = pattern.matcher(string);
 //        int index = 0;
@@ -564,7 +588,7 @@ public class Json implements Closeable, AutoCloseable {
     
     protected static String codeToChar(Object object) {
         final String string = object.toString();
-        final int point = Integer.parseInt(string.substring(2),16);
+        final int point = Integer.parseInt(string.substring(2), 16);
         final char[] characters = Character.toChars(point);
         return new String(characters);
     }
@@ -888,9 +912,9 @@ class JsonArray {
             }
             if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
             if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
-            else if (value instanceof String string) this.writeString( '"' + string + '"');
+            else if (value instanceof String string) this.writeString('"' + string + '"');
             else if (value == null) this.writeString("null");
-            else if (value instanceof Map<?,?> child) new Json(writer).write(child, indent, level);
+            else if (value instanceof Map<?, ?> child) new Json(writer).write(child, indent, level);
             else if (value instanceof List<?> child) new JsonArray(writer).write(child, indent, level);
         }
         level--;
@@ -902,10 +926,11 @@ class JsonArray {
     
     public <Container extends List<Object>> Container toList(Container list) {
         if (reader == null) throw new JsonException("This Json controller has no reader.");
-        loop: while (this.state != END) {
+        loop:
+        while (this.state != END) {
             this.mark(4);
             final char c = this.readChar();
-            state: switch (state) {
+            switch (state) {
                 case START:
                     if (c == '[') {
                         this.state = EXPECTING_VALUE;
@@ -921,7 +946,8 @@ class JsonArray {
                         this.currentValue = new StringBuilder();
                         final String value = (String) new Json.StringReader(reader, currentValue).read();
                         if (value.contains("\\u")) {
-                            final String converted = CODE_POINT.matcher(value).replaceAll(result -> Json.codeToChar(result.group()));
+                            final String converted = CODE_POINT.matcher(value)
+                                .replaceAll(result -> Json.codeToChar(result.group()));
                             list.add(converted);
                         } else list.add(value);
                         this.state = EXPECTING_END;
@@ -943,21 +969,21 @@ class JsonArray {
                     } else if (c >= '0' && c <= '9' || c == '-') {
                         this.reset();
                         this.currentValue = new StringBuilder();
-                        final Object value = new Json.NumberReader(reader, currentValue).read();
+                        final Object value = new NumberReader(reader, currentValue).read();
                         list.add(value);
                         this.state = EXPECTING_END;
                         continue;
                     } else if (c == 'f' || c == 't') {
                         this.reset();
                         this.currentValue = new StringBuilder();
-                        final Object value = new Json.BooleanReader(reader, currentValue).read();
+                        final Object value = new BooleanReader(reader, currentValue).read();
                         list.add(value);
                         this.state = EXPECTING_END;
                         continue;
                     } else if (c == 'n') {
                         this.reset();
                         this.currentValue = new StringBuilder();
-                        final Object value = new Json.NullReader(reader, currentValue).read();
+                        final Object value = new NullReader(reader, currentValue).read();
                         list.add(value);
                         this.state = EXPECTING_END;
                         continue;

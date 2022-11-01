@@ -93,10 +93,10 @@ public class BasicReadTest {
             final Map<String, Object> map = json.toMap();
             assert map != null;
             assert map.size() == 4;
-            assert map.get("a").equals(1): map;
-            assert map.get("b").equals(6): map;
-            assert map.get("c").equals(23): map;
-            assert map.get("d").equals(-4.5): map;
+            assert map.get("a").equals(1) : map;
+            assert map.get("b").equals(6) : map;
+            assert map.get("c").equals(23) : map;
+            assert map.get("d").equals(-4.5) : map;
         }
     }
     
@@ -109,8 +109,8 @@ public class BasicReadTest {
             final Map<String, Object> map = json.toMap();
             assert map != null;
             assert map.size() == 2;
-            assert map.get("hello").equals(true): map;
-            assert map.get("there") == null: map;
+            assert map.get("hello").equals(true) : map;
+            assert map.get("there") == null : map;
         }
     }
     
@@ -123,10 +123,10 @@ public class BasicReadTest {
             final Map<String, Object> map = json.toMap();
             assert map != null;
             assert map.size() == 4;
-            assert map.get("a").equals("yes"): map;
-            assert map.get("b").equals(true): map;
-            assert map.get("c").equals(1): map;
-            assert map.get("d") == null: map;
+            assert map.get("a").equals("yes") : map;
+            assert map.get("b").equals(true) : map;
+            assert map.get("c").equals(1) : map;
+            assert map.get("d") == null : map;
         }
     }
     
@@ -139,7 +139,7 @@ public class BasicReadTest {
             final Map<String, Object> map = json.toMap();
             assert map != null;
             assert map.size() == 1;
-            assert map.get("hello") instanceof Map<?,?>;
+            assert map.get("hello") instanceof Map<?, ?>;
             assert ((Map<?, ?>) map.get("hello")).get("hello").equals("there");
         }
     }
@@ -227,12 +227,14 @@ public class BasicReadTest {
     
     @Test
     public void escapes() {
-        class Result { String hello; }
+        class Result {
+            String hello;
+        }
         final String string = "{\"hello\": \"there\\ngeneral\\tkenobi\"}";
         final Result result = Json.fromJson(string, new Result());
         assert result != null;
         assert result.hello != null;
-        assert result.hello.equals("there\ngeneral\tkenobi"): result.hello;
+        assert result.hello.equals("there\ngeneral\tkenobi") : result.hello;
     }
     
 }
