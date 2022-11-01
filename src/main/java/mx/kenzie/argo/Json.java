@@ -6,10 +6,7 @@ import sun.reflect.ReflectionFactory;
 
 import java.io.Reader;
 import java.io.*;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
@@ -246,20 +243,21 @@ public class Json implements Closeable, AutoCloseable {
             final int modifiers = field.getModifiers();
             if ((modifiers & 0x00000002) != 0) continue;
             if ((modifiers & 0x00000008) != 0) continue;
-            if ((modifiers & 0x00000080) != 0) continue;
             if ((modifiers & 0x00001000) != 0) continue;
-            if (!field.canAccess(object)) field.trySetAccessible();
             final String key;
             if (field.isAnnotationPresent(Name.class)) key = field.getAnnotation(Name.class).value();
             else key = field.getName();
             if (key.equals("__data")) try {
+                if (!field.canAccess(object)) field.trySetAccessible();
                 assert Map.class.isAssignableFrom(field.getType()) : "Dataset field must accept map.";
                 field.set(object, map);
                 continue;
             } catch (IllegalAccessException ex) {
                 throw new JsonException("Unable to store dataset object.", ex);
             }
+            if ((modifiers & 0x00000080) != 0) continue;
             if (!map.containsKey(key)) continue;
+            if (!field.canAccess(object)) field.trySetAccessible();
             final Object value = map.get(key);
             final Class<?> expected = field.getType();
             final Object lock;
@@ -734,7 +732,7 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     protected record BooleanReader(java.io.Reader stream, StringBuilder builder)
-        implements Reader {
+        implements Json.Reader {
         public Object read() {
             try {
                 this.stream.mark(4);
@@ -765,7 +763,7 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     protected record NullReader(java.io.Reader stream, StringBuilder builder)
-        implements Reader {
+        implements Json.Reader {
         public Object read() {
             try {
                 this.stream.mark(4);
@@ -789,7 +787,7 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     protected record StringReader(java.io.Reader stream, StringBuilder builder)
-        implements Reader {
+        implements Json.Reader {
         
         @Override
         public Object read() {
@@ -824,7 +822,7 @@ public class Json implements Closeable, AutoCloseable {
     }
     
     protected record NumberReader(java.io.Reader stream, StringBuilder builder)
-        implements Reader {
+        implements Json.Reader {
         
         @Override
         public Object read() {

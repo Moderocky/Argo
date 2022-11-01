@@ -12,7 +12,7 @@ public class DataSetTest {
         class Child {
             String name;
             int bean;
-            Map<String, Object> __data;
+            transient Map<String, Object> __data;
         }
         final String string = """
             { "hello": "there", "bean": 5, "name": "test" }
