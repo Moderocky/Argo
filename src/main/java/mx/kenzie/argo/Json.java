@@ -250,7 +250,9 @@ public class Json implements Closeable, AutoCloseable {
             if (key.equals("__data")) try {
                 if (!field.canAccess(object)) field.trySetAccessible();
                 assert Map.class.isAssignableFrom(field.getType()) : "Dataset field must accept map.";
-                field.set(object, map);
+                final Map<String, Object> initial = (Map<String, Object>) field.get(object);
+                if (initial != null) initial.putAll((Map<? extends String, ?>) map);
+                else field.set(object, map);
                 continue;
             } catch (IllegalAccessException ex) {
                 throw new JsonException("Unable to store dataset object.", ex);
