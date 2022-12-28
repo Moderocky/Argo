@@ -150,6 +150,7 @@ public class Json implements Closeable, AutoCloseable {
                 else if (value instanceof Number) map.put(key, value);
                 else if (value instanceof Boolean) map.put(key, value);
                 else if (value instanceof List<?>) map.put(key, value);
+                else if (value instanceof Map<?, ?>) map.put(key, value);
                 else if (expected.isArray()) {
                     final List<Object> child = new ArrayList<>();
                     map.put(key, child);
