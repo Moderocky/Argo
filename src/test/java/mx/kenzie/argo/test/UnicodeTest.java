@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class UnicodeTest {
-    
+
     @Test
     public void test() {
         class Blob {
@@ -19,7 +19,7 @@ public class UnicodeTest {
         final Blob blob = Json.fromJson(string, new Blob());
         assert Objects.equals(blob.value, new Blob().value);
     }
-    
+
     @Test
     public void second() {
         final Map<String, Object> map = new HashMap<>();
@@ -30,5 +30,5 @@ public class UnicodeTest {
         final Map<String, Object> result = Json.fromJson(json);
         assert result.get("hello").equals(map.get("hello"));
     }
-    
+
 }
