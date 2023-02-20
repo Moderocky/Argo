@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BasicWriteTest {
-    
+
     @Test
     public void simple() {
         final Map<String, Object> start = new HashMap<>();
@@ -20,7 +20,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void keyValue() {
         final Map<String, Object> start = new HashMap<>();
@@ -32,7 +32,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void multiKey() {
         final Map<String, Object> start = new HashMap<>();
@@ -45,7 +45,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void types() {
         final Map<String, Object> start = new HashMap<>();
@@ -61,7 +61,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void complex() {
         final Map<String, Object> start = new HashMap<>();
@@ -80,7 +80,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void simpleList() {
         final List<Object> start = new ArrayList<>();
@@ -91,7 +91,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void complexList() {
         final List<Object> start = new ArrayList<>();
@@ -105,7 +105,7 @@ public class BasicWriteTest {
             assert start.equals(end);
         }
     }
-    
+
     @Test
     public void pretty() {
         final Map<String, Object> start = new HashMap<>();
@@ -130,7 +130,7 @@ public class BasicWriteTest {
               }
             }""") : string;
     }
-    
+
     @Test
     public void escapes() {
         class Result {
@@ -139,5 +139,5 @@ public class BasicWriteTest {
         final String string = Json.toJson(new Result());
         assert string.equals("{\"hello\": \"there\\ngeneral\\tkenobi\"}") : string;
     }
-    
+
 }
