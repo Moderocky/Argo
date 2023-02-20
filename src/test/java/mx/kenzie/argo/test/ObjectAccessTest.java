@@ -7,7 +7,7 @@ import org.junit.Test;
 import java.util.Arrays;
 
 public class ObjectAccessTest {
-    
+
     @Test
     public void simple() {
         final String string = """
@@ -17,7 +17,7 @@ public class ObjectAccessTest {
         assert result != null;
         assert result.hello.equals("there");
     }
-    
+
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void inner() {
@@ -31,7 +31,7 @@ public class ObjectAccessTest {
         assert result != null;
         assert result.hello.equals("there");
     }
-    
+
     @Test
     public void primitive() {
         class Result {
@@ -45,7 +45,7 @@ public class ObjectAccessTest {
         assert result.a == 1;
         assert result.b == 6;
     }
-    
+
     @Test
     public void mixed() {
         class Result {
@@ -61,7 +61,7 @@ public class ObjectAccessTest {
         assert result.b == 6 : result.b;
         assert result.hello.equals("there") : result.hello;
     }
-    
+
     @Test
     public void reverse() {
         class Result {
@@ -75,7 +75,7 @@ public class ObjectAccessTest {
         assert string != null;
         assert string.equals("{\"a\": 2,\"b\": 0,\"hello\": \"there\"}") : string;
     }
-    
+
     @Test
     public void children() {
         class Child {
@@ -94,7 +94,7 @@ public class ObjectAccessTest {
         assert result.child != null;
         assert result.child.bean == 5 : result.child.bean;
     }
-    
+
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void reverseChildren() {
@@ -110,7 +110,7 @@ public class ObjectAccessTest {
         assert string != null;
         assert string.equals("{\"hello\": \"there\",\"child\": {\"bean\": 3}}") : string;
     }
-    
+
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void simpleArrayTest() {
@@ -127,7 +127,7 @@ public class ObjectAccessTest {
         assert test.hello.equals(result.hello) : test.hello;
         assert Arrays.equals(test.numbers, result.numbers) : test.numbers;
     }
-    
+
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void complexArrayTest() {
@@ -149,7 +149,7 @@ public class ObjectAccessTest {
         assert test.children[0].a == 2;
         assert test.children[1].a == 1;
     }
-    
+
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void arrayFromData() {
@@ -169,7 +169,7 @@ public class ObjectAccessTest {
         assert result.children[0].a == 5;
         assert result.children[1].a == 3;
     }
-    
+
     @Test
     @SuppressWarnings("FieldMayBeFinal")
     public void directArray() {
@@ -181,10 +181,11 @@ public class ObjectAccessTest {
         assert result.length == 3;
         assert result[1] == 3;
     }
-    
+
     @Test
     public void readAnySubType() {
-        class Bean {}
+        class Bean {
+        }
         class Child extends Bean {
             final int number = 5;
         }
@@ -195,10 +196,11 @@ public class ObjectAccessTest {
         assert string != null;
         assert string.equals("{\"child\": {\"number\": 5}}") : string;
     }
-    
+
     @Test
     public void writeAnySubType() {
-        class Bean {}
+        class Bean {
+        }
         class Child extends Bean {
             final int number = 5;
         }
@@ -209,12 +211,12 @@ public class ObjectAccessTest {
         assert string != null;
         assert string.equals("{\"child\": {\"number\": 5}}") : string;
     }
-    
+
     @Test
     public void existingMesh() {
         class Child {
-            int foo;
             final int bar = 6;
+            int foo;
         }
         class Result {
             final Child child = new Child();
@@ -226,11 +228,11 @@ public class ObjectAccessTest {
         assert result != null;
         assert result.child.foo == 1 : result.child.foo;
         assert result.child.bar == 6 : result.child.bar;
-        
+
     }
-    
+
     public static final class Simple {
         public String hello = null;
     }
-    
+
 }
