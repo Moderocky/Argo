@@ -6,7 +6,7 @@ import org.junit.Test;
 import java.util.Map;
 
 public class DataSetTest {
-    
+
     @Test
     public void test() {
         class Child {
@@ -27,5 +27,5 @@ public class DataSetTest {
         assert result.__data.get("hello").equals("there") : result.__data.get("hello");
         assert Json.toJson(result).equals("{\"name\": \"test\",\"bean\": 5}") : Json.toJson(result);
     }
-    
+
 }
