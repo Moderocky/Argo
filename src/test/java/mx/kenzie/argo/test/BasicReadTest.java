@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BasicReadTest {
-    
+
     @Test
     public void simple() {
         try (final Json json = new Json("{}")) {
@@ -16,7 +16,7 @@ public class BasicReadTest {
             assert map.size() == 0;
         }
     }
-    
+
     @Test
     public void spaced() {
         try (final Json json = new Json("""
@@ -28,7 +28,7 @@ public class BasicReadTest {
             assert map.size() == 0;
         }
     }
-    
+
     @Test
     public void keyValue() {
         final String string = """
@@ -41,7 +41,7 @@ public class BasicReadTest {
             assert map.get("hello").equals("there");
         }
     }
-    
+
     @Test
     public void multiKey() {
         final String string = """
@@ -55,7 +55,7 @@ public class BasicReadTest {
             assert map.get("general").equals("kenobi");
         }
     }
-    
+
     @Test
     public void replaceKey() {
         final String string = """
@@ -69,7 +69,7 @@ public class BasicReadTest {
             assert map.get("hello").equals("there");
         }
     }
-    
+
     @Test
     public void booleans() {
         final String string = """
@@ -83,7 +83,7 @@ public class BasicReadTest {
             assert map.get("b").equals(false);
         }
     }
-    
+
     @Test
     public void numbers() {
         final String string = """
@@ -99,7 +99,7 @@ public class BasicReadTest {
             assert map.get("d").equals(-4.5) : map;
         }
     }
-    
+
     @Test
     public void noValue() {
         final String string = """
@@ -113,7 +113,7 @@ public class BasicReadTest {
             assert map.get("there") == null : map;
         }
     }
-    
+
     @Test
     public void mixed() {
         final String string = """
@@ -129,7 +129,7 @@ public class BasicReadTest {
             assert map.get("d") == null : map;
         }
     }
-    
+
     @Test
     public void compound() {
         final String string = """
@@ -143,7 +143,7 @@ public class BasicReadTest {
             assert ((Map<?, ?>) map.get("hello")).get("hello").equals("there");
         }
     }
-    
+
     @Test
     public void emptyList() {
         final String string = """
@@ -158,7 +158,7 @@ public class BasicReadTest {
             assert ((List<?>) map.get("hello")).isEmpty();
         }
     }
-    
+
     @Test
     public void singleList() {
         final String string = """
@@ -174,7 +174,7 @@ public class BasicReadTest {
             assert ((List<?>) map.get("hello")).contains("there");
         }
     }
-    
+
     @Test
     public void multiList() {
         final String string = """
@@ -191,7 +191,7 @@ public class BasicReadTest {
             assert ((List<?>) map.get("hello")).contains(1);
         }
     }
-    
+
     @Test
     public void complexList() {
         final String string = """
@@ -210,7 +210,7 @@ public class BasicReadTest {
             assert list.get(1) instanceof List<?> inner && inner.contains(2);
         }
     }
-    
+
     @Test
     public void onlyList() {
         final String string = """
@@ -224,7 +224,7 @@ public class BasicReadTest {
             assert list.get(1).equals("there");
         }
     }
-    
+
     @Test
     public void escapes() {
         class Result {
@@ -236,5 +236,5 @@ public class BasicReadTest {
         assert result.hello != null;
         assert result.hello.equals("there\ngeneral\tkenobi") : result.hello;
     }
-    
+
 }
