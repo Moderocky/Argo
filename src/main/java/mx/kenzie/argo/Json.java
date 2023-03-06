@@ -158,6 +158,13 @@ public class Json implements Closeable, AutoCloseable {
     }
 
     @Contract(pure = true)
+    public static Map<String, Object> toMap(Object object) {
+        final Map<String, Object> map = new LinkedHashMap<>();
+        new Json(new StringWriter()).write(object, object.getClass(), map);
+        return map;
+    }
+
+    @Contract(pure = true)
     public static Map<String, Object> fromJson(String string) {
         try (final Json json = new Json(string)) {
             return json.toMap(new HashMap<>());
