@@ -662,6 +662,7 @@ public class Json implements Closeable, AutoCloseable {
         if (pretty) this.writeString(System.lineSeparator());
         if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
         this.writeChar('}');
+        this.flush();
     }
 
     private String sanitise(String string) {
@@ -673,6 +674,16 @@ public class Json implements Closeable, AutoCloseable {
             .replace("\b", "\\b")
             .replace("\f", "\\f");
         return Json.charToCode(part);
+    }
+
+    protected void flush() {
+        if (writer != null) {
+            try {
+                writer.flush();
+            } catch (IOException e) {
+                throw new JsonException(e);
+            }
+        }
     }
 
     protected void mark(int chars) {
@@ -689,6 +700,7 @@ public class Json implements Closeable, AutoCloseable {
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
+        this.flush();
     }
 
     protected void writeChar(char c) {
@@ -922,7 +934,7 @@ class JsonArray {
         if (pretty) this.writeString(System.lineSeparator());
         if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
         this.writeChar(']');
-
+        this.flush();
     }
 
     public <Container extends List<Object>> Container toList(Container list) {
@@ -1017,6 +1029,7 @@ class JsonArray {
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
+        this.flush();
     }
 
     protected void writeChar(char c) {
@@ -1052,6 +1065,16 @@ class JsonArray {
             this.reader.reset();
         } catch (IOException ex) {
             throw new JsonException(ex);
+        }
+    }
+
+    protected void flush() {
+        if (writer != null) {
+            try {
+                writer.flush();
+            } catch (IOException e) {
+                throw new JsonException(e);
+            }
         }
     }
 
