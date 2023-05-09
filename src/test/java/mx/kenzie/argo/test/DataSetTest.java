@@ -25,7 +25,7 @@ public class DataSetTest {
         assert result.__data.get("name").equals("test") : result.__data.get("name");
         assert result.__data.get("bean").equals(5) : result.__data.get("bean");
         assert result.__data.get("hello").equals("there") : result.__data.get("hello");
-        assert Json.toJson(result).equals("{\"name\": \"test\",\"bean\": 5}") : Json.toJson(result);
+        assert Json.toJson(result).equals("{\"name\": \"test\", \"bean\": 5}") : Json.toJson(result);
     }
 
 }

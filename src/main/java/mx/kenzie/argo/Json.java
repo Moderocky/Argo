@@ -5,7 +5,6 @@ import mx.kenzie.argo.meta.*;
 import org.jetbrains.annotations.Contract;
 import sun.reflect.ReflectionFactory;
 
-import java.io.Reader;
 import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
@@ -19,8 +18,6 @@ import java.util.*;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-import static mx.kenzie.argo.Json.*;
-
 @SuppressWarnings({"unchecked", "SameParameterValue"})
 public class Json implements Closeable, AutoCloseable {
 
@@ -33,9 +30,16 @@ public class Json implements Closeable, AutoCloseable {
         EXPECTING_VALUE = 4,
         EXPECTING_END = 5,
         END = -1;
+    static final DecimalFormat FORMAT = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
+
+    static {
+        FORMAT.setMaximumFractionDigits(340);
+    }
+
     protected transient java.io.Reader reader;
     protected transient Writer writer;
     protected int state = START;
+    protected WriteController controller = new WriteController(null);
     private transient StringBuilder currentKey, currentValue;
 
     public Json(java.io.Reader reader) {
@@ -185,6 +189,65 @@ public class Json implements Closeable, AutoCloseable {
         }
     }
 
+    static Object read(char initial, Json json) {
+        final StringBuilder builder = new StringBuilder();
+        if (initial == '"') {
+            final String value = new StringReader(json.reader, builder).read();
+            if (value.contains("\\u")) {
+                return CODE_POINT.matcher(value)
+                    .replaceAll(result -> Json.codeToChar(result.group()));
+            } else return value;
+        } else if (initial == '{') {
+            json.reset();
+            try (JsonObject object = new JsonObject(json)) {
+                return object.readMap();
+            }
+        } else if (initial == '[') {
+            json.reset();
+            try (JsonArray array = new JsonArray(json)) {
+                return array.readList();
+            }
+        } else if (initial >= '0' && initial <= '9' || initial == '-') {
+            json.reset();
+            return new NumberReader(json.reader, builder).read();
+        } else if (initial == 'f' || initial == 't') {
+            json.reset();
+            return new BooleanReader(json.reader, builder).read();
+        } else if (initial == 'n') {
+            json.reset();
+            return new NullReader(json.reader, builder).read();
+        } else throw new JsonException("Expected value start, found illegal '" + initial + "'.");
+    }
+
+    static String sanitise(String string) {
+        final String part = string
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+            .replace("\b", "\\b")
+            .replace("\f", "\\f");
+        return Json.charToCode(part);
+    }
+
+    static void write(Object value, Json json) {
+        if (value instanceof Double d) json.writeString(FORMAT.format(d));
+        else if (value instanceof Boolean || value instanceof Number) json.writeString(value.toString());
+        else if (value instanceof String string) json.writeString('"' + sanitise(string) + '"');
+        else if (value == null) json.writeString("null");
+        else if (value instanceof Map<?, ?> child) try (JsonObject object = new JsonObject(json)) {
+            object.write(child);
+        }
+        else if (value instanceof List<?> child) try (JsonArray array = new JsonArray(json)) {
+            array.write(child);
+        }
+        json.flush();
+    }
+
+    public static Json of(String string) {
+        return new Json(new ByteArrayInputStream(string.getBytes(StandardCharsets.UTF_8)));
+    }
+
     @SuppressWarnings("unchecked")
     private <Type> Constructor<Type> createConstructor0(Class<Type> type) throws NoSuchMethodException {
         final Constructor<?> shift = Object.class.getConstructor();
@@ -307,7 +370,7 @@ public class Json implements Closeable, AutoCloseable {
         else return data;
     }
 
-    private Object convertList(Class<?> type, List<?> list) {
+    Object convertList(Class<?> type, List<?> list) {
         final Class<?> component = type.getComponentType();
         final Object object = Array.newInstance(component, list.size());
         final Object[] objects = list.toArray();
@@ -438,20 +501,12 @@ public class Json implements Closeable, AutoCloseable {
 
     @SuppressWarnings({"all"})
     public <Container> Container toArray(Container array) {
-        if (array == null) throw new JsonException("Provided array was null.");
-        final Class<?> type = array.getClass();
-        if (!type.isArray()) throw new JsonException("Provided object was not an array.");
-        final Class<?> component = type.getComponentType();
-        final List<?> list = this.toList();
-        final Container container;
-        if (Array.getLength(array) < 1) container = (Container) Array.newInstance(component, list.size());
-        else container = array;
-        final Object source = this.convertList(container.getClass(), list);
-        final int a = Array.getLength(container), b = Array.getLength(source);
-        System.arraycopy(source, 0, container, 0, Math.min(a, b));
-        return container;
+        try (JsonArray source = new JsonArray(this)) {
+            return source.toArray(array);
+        }
     }
 
+    @Deprecated(since = "1.2.0")
     public boolean willBeMap() {
         char c;
         while (true) {
@@ -462,10 +517,14 @@ public class Json implements Closeable, AutoCloseable {
         }
         this.reset();
         return c == '{';
-
     }
 
+    @Deprecated(since = "1.2.0")
     public Object toSomething() {
+        return this.readObject();
+    }
+
+    public Object readObject() {
         char c;
         while (true) {
             this.mark(4);
@@ -474,8 +533,7 @@ public class Json implements Closeable, AutoCloseable {
             break;
         }
         this.reset();
-        if (c == '[') return this.toList();
-        return this.toMap();
+        return Json.read(c, this);
     }
 
     public List<Object> toList() {
@@ -488,8 +546,9 @@ public class Json implements Closeable, AutoCloseable {
     }
 
     public <Container extends List<Object>> Container toList(Container list) {
-        new JsonArray(reader).toList(list);
-        return list;
+        try (JsonArray array = new JsonArray(this)) {
+            return array.toList(list);
+        }
     }
 
     public Map<String, Object> toMap() {
@@ -502,104 +561,13 @@ public class Json implements Closeable, AutoCloseable {
     }
 
     public <Container extends Map<String, Object>> Container toMap(final Container map) {
-        if (reader == null) throw new JsonException("This Json controller has no reader.");
-        loop:
-        while (this.state != END) {
-            this.mark(4);
-            final char c = this.readChar();
-            switch (state) {
-                case START:
-                    if (c == '{') {
-                        this.state = EXPECTING_KEY;
-                        continue;
-                    } else if (!Character.isWhitespace(c)) {
-                        throw new JsonException("Expected opening '{', found '" + c + "'.", map);
-                    }
-                    break;
-                case EXPECTING_KEY:
-                    assert currentValue == null;
-                    assert currentKey == null;
-                    if (c == '"') {
-                        this.state = IN_KEY;
-                        this.currentKey = new StringBuilder();
-                        new StringReader(reader, currentKey).read();
-                        this.state = AFTER_KEY;
-                        continue;
-                    } else if (c == '}') {
-                        break loop;
-                    } else if (!Character.isWhitespace(c)) {
-                        throw new JsonException("Expected key start '\"', found '" + c + "'.", map);
-                    }
-                    break;
-                case IN_KEY:
-                    assert currentKey != null;
-                case AFTER_KEY:
-                    assert currentValue == null;
-                    assert currentKey != null;
-                    assert currentKey.length() > 0;
-                    if (c == ':') {
-                        this.state = EXPECTING_VALUE;
-                        continue;
-                    } else if (!Character.isWhitespace(c)) {
-                        throw new JsonException("Expected separator ':', found '" + c + "'.", map);
-                    }
-                    break;
-                case EXPECTING_VALUE:
-                    if (Character.isWhitespace(c)) continue;
-                    assert currentValue == null;
-                    assert currentKey != null;
-                    assert currentKey.length() > 0;
-                    map.put(currentKey.toString(), this.readElement(c));
-                    this.state = EXPECTING_END;
-                    break;
-                case EXPECTING_END:
-                    if (Character.isWhitespace(c)) continue;
-                    if (c == ',') {
-                        this.state = EXPECTING_KEY;
-                        assert currentKey != null;
-                        this.currentKey = null;
-                        this.currentValue = null;
-                        continue;
-                    } else if (c == '}') {
-                        break loop;
-                    }
-                    throw new JsonException("Expected delimiter ',' or end '}', found '" + c + "'.", map);
-                default:
-                    throw new JsonException("Unexpected header state.", map);
-            }
+        try (JsonObject object = new JsonObject(this)) {
+            return object.toMap(map);
         }
-        return map;
     }
 
     public Object readElement(char initial) {
-        if (initial == '"') {
-            this.currentValue = new StringBuilder();
-            final String value = (String) new StringReader(reader, currentValue).read();
-            if (value.contains("\\u")) {
-                return CODE_POINT.matcher(value)
-                    .replaceAll(result -> Json.codeToChar(result.group()));
-            } else return value;
-        } else if (initial == '{') {
-            this.reset();
-            final Json json = new Json(this.reader);
-            return json.toMap(new HashMap<>());
-        } else if (initial == '[') {
-            this.reset();
-            final JsonArray array = new JsonArray(this.reader);
-            return array.toList(new ArrayList<>());
-        } else if (initial >= '0' && initial <= '9' || initial == '-') {
-            this.reset();
-            this.currentValue = new StringBuilder();
-            return new NumberReader(reader, currentValue).read();
-        } else if (initial == 'f' || initial == 't') {
-            this.reset();
-            this.currentValue = new StringBuilder();
-            return new BooleanReader(reader, currentValue).read();
-        } else if (initial == 'n') {
-            this.reset();
-            this.currentValue = new StringBuilder();
-            return new NullReader(reader, currentValue).read();
-        } else throw new JsonException("Expected value start, found illegal '" + initial + "'.");
+        return Json.read(initial, this);
     }
 
     public void write(List<?> list) {
@@ -608,7 +576,10 @@ public class Json implements Closeable, AutoCloseable {
 
     public void write(List<?> list, String indent, int level) {
         if (writer == null) throw new JsonException("This Json controller has no writer.");
-        new JsonArray(writer).write(list, indent, level);
+        this.setController(new WriteController(indent, level));
+        try (JsonArray array = new JsonArray(this)) {
+            array.write(list);
+        }
     }
 
     public void write(Map<?, ?> map) {
@@ -616,49 +587,10 @@ public class Json implements Closeable, AutoCloseable {
     }
 
     public void write(Map<?, ?> map, String indent, int level) {
-        final DecimalFormat format = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
-        format.setMaximumFractionDigits(340);
-        if (writer == null) throw new JsonException("This Json controller has no writer.");
-        final boolean pretty = indent != null && !indent.isEmpty() && !map.isEmpty();
-        this.writeChar('{');
-        if (pretty) this.writeString(System.lineSeparator());
-        level++;
-        boolean first = true;
-        for (final Map.Entry<?, ?> entry : map.entrySet()) {
-            if (first) first = false;
-            else {
-                this.writeChar(',');
-                if (pretty) this.writeString(System.lineSeparator());
-            }
-            if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
-            this.writeChar('"');
-            assert entry.getKey() != null;
-            this.writeString(entry.getKey().toString());
-            this.writeString("\": ");
-            final Object value = entry.getValue();
-            if (value instanceof Double d) this.writeString(format.format(d));
-            else if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
-            else if (value instanceof String string) this.writeString('"' + this.sanitise(string) + '"');
-            else if (value == null) this.writeString("null");
-            else if (value instanceof Map<?, ?> child) new Json(writer).write(child, indent, level);
-            else if (value instanceof List<?> child) new JsonArray(writer).write(child, indent, level);
+        this.setController(new WriteController(indent, level));
+        try (JsonObject object = new JsonObject(this)) {
+            object.write(map);
         }
-        level--;
-        if (pretty) this.writeString(System.lineSeparator());
-        if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
-        this.writeChar('}');
-        this.flush();
-    }
-
-    private String sanitise(String string) {
-        final String part = string
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-            .replace("\b", "\\b")
-            .replace("\f", "\\f");
-        return Json.charToCode(part);
     }
 
     protected void flush() {
@@ -682,7 +614,6 @@ public class Json implements Closeable, AutoCloseable {
     protected void writeString(String value) {
         try {
             this.writer.write(value);
-            this.flush();
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
@@ -724,6 +655,18 @@ public class Json implements Closeable, AutoCloseable {
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
+    }
+
+    public boolean isWritable() {
+        return writer != null;
+    }
+
+    WriteController writeController() {
+        return controller;
+    }
+
+    void setController(WriteController controller) {
+        this.controller = controller;
     }
 
     private interface Reader {
@@ -789,7 +732,7 @@ public class Json implements Closeable, AutoCloseable {
         implements Json.Reader {
 
         @Override
-        public Object read() {
+        public String read() {
             try {
                 boolean escape = false;
                 while (true) {
@@ -824,7 +767,7 @@ public class Json implements Closeable, AutoCloseable {
         implements Json.Reader {
 
         @Override
-        public Object read() {
+        public Number read() {
             try {
                 boolean first = true, decimal = false;
                 while (true) {
@@ -874,191 +817,88 @@ public class Json implements Closeable, AutoCloseable {
 
     }
 
+    static class WriteController {
+
+        final String indent;
+        int level;
+
+        public WriteController(String indent) {
+            this.indent = indent;
+        }
+
+        public WriteController(String indent, int level) {
+            this(indent);
+            this.level = level;
+        }
+
+        public boolean isPretty() {
+            return indent != null;
+        }
+
+        public void enter() {
+            this.level++;
+        }
+
+        public void exit() {
+            this.level--;
+        }
+
+        public String getIndent() {
+            if (!this.isPretty()) return "";
+            return "\n" + String.valueOf(indent).repeat(Math.max(0, level));
+        }
+
+    }
 }
 
-@SuppressWarnings({"SameParameterValue", "null"})
-class JsonArray {
+abstract class JsonElement implements Closeable {
 
-    private final Reader reader;
-    private final Writer writer;
-    protected int state = START;
-    private transient StringBuilder currentValue;
+    protected transient final Json json;
+    protected transient final Json.WriteController controller;
 
-    JsonArray(Reader stream) {
-        this.reader = stream;
-        this.writer = null;
+    public JsonElement(Json json) {
+        this.json = json;
+        this.controller = json.writeController();
     }
 
-    JsonArray(Writer writer) {
-        this.reader = null;
-        this.writer = writer;
+    public abstract void open();
+
+    @Override
+    public abstract void close();
+
+    public boolean isWritable() {
+        return json.isWritable();
     }
 
-    public void write(List<?> list, String indent, int level) {
-        final boolean pretty = indent != null && !indent.isEmpty() && !list.isEmpty();
-        this.writeChar('[');
-        if (pretty) this.writeString(System.lineSeparator());
-        level++;
-        boolean first = true;
-        for (final Object value : list) {
-            if (first) first = false;
-            else {
-                this.writeChar(',');
-                if (pretty) this.writeString(System.lineSeparator());
-            }
-            if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
-            if (value instanceof Boolean || value instanceof Number) this.writeString(value.toString());
-            else if (value instanceof String string) this.writeString('"' + string + '"');
-            else if (value == null) this.writeString("null");
-            else if (value instanceof Map<?, ?> child) new Json(writer).write(child, indent, level);
-            else if (value instanceof List<?> child) new JsonArray(writer).write(child, indent, level);
-        }
-        level--;
-        if (pretty) this.writeString(System.lineSeparator());
-        if (pretty) for (int i = 0; i < level; i++) this.writeString(indent);
-        this.writeChar(']');
-        this.flush();
-    }
-
-    public <Container extends List<Object>> Container toList(Container list) {
-        if (reader == null) throw new JsonException("This Json controller has no reader.");
-        loop:
-        while (this.state != END) {
-            this.mark(4);
-            final char c = this.readChar();
-            switch (state) {
-                case START:
-                    if (c == '[') {
-                        this.state = EXPECTING_VALUE;
-                        continue;
-                    } else if (c > 32 && c != 160) {
-                        throw new JsonException("Expected opening '[', found '" + c + "'.");
-                    }
-                    break;
-                case EXPECTING_VALUE:
-                    if (c <= 32 || c == 160) continue;
-                    assert currentValue == null;
-                    if (c == '"') {
-                        this.currentValue = new StringBuilder();
-                        final String value = (String) new Json.StringReader(reader, currentValue).read();
-                        if (value.contains("\\u")) {
-                            final String converted = CODE_POINT.matcher(value)
-                                .replaceAll(result -> Json.codeToChar(result.group()));
-                            list.add(converted);
-                        } else list.add(value);
-                        this.state = EXPECTING_END;
-                        continue;
-                    } else if (c == '{') {
-                        this.reset();
-                        final Json json = new Json(this.reader);
-                        final Map<String, Object> value = json.toMap(new HashMap<>());
-                        list.add(value);
-                        this.state = EXPECTING_END;
-                        continue;
-                    } else if (c == '[') {
-                        this.reset();
-                        final JsonArray array = new JsonArray(this.reader);
-                        final List<Object> value = array.toList(new ArrayList<>());
-                        list.add(value);
-                        this.state = EXPECTING_END;
-                        continue;
-                    } else if (c >= '0' && c <= '9' || c == '-') {
-                        this.reset();
-                        this.currentValue = new StringBuilder();
-                        final Object value = new NumberReader(reader, currentValue).read();
-                        list.add(value);
-                        this.state = EXPECTING_END;
-                        continue;
-                    } else if (c == 'f' || c == 't') {
-                        this.reset();
-                        this.currentValue = new StringBuilder();
-                        final Object value = new BooleanReader(reader, currentValue).read();
-                        list.add(value);
-                        this.state = EXPECTING_END;
-                        continue;
-                    } else if (c == 'n') {
-                        this.reset();
-                        this.currentValue = new StringBuilder();
-                        final Object value = new NullReader(reader, currentValue).read();
-                        list.add(value);
-                        this.state = EXPECTING_END;
-                        continue;
-                    } else if (c == ']') {
-                        break loop;
-                    } else {
-                        throw new JsonException("Expected value start, found illegal '" + c + "'.");
-                    }
-                case EXPECTING_END:
-                    if (c <= 32 || c == 160) continue;
-                    if (c == ',') {
-                        this.state = EXPECTING_VALUE;
-                        this.currentValue = null;
-                        continue;
-                    } else if (c == ']') {
-                        break loop;
-                    }
-                    throw new JsonException("Expected delimiter ',' or end ']', found '" + c + "'.");
-                default:
-                    throw new JsonException("Unexpected header state.");
-            }
-        }
-        return list;
-    }
-
-    protected void writeString(String value) {
-        try {
-            assert writer != null;
-            this.writer.write(value);
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-        this.flush();
-    }
-
-    protected void writeChar(char c) {
-        try {
-            assert writer != null;
-            this.writer.write(c);
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    protected void mark(int chars) {
-        try {
-            assert reader != null;
-            this.reader.mark(chars);
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    protected char readChar() {
-        try {
-            assert reader != null;
-            return (char) reader.read();
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    protected void reset() {
-        try {
-            assert reader != null;
-            this.reader.reset();
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
+    public boolean isPretty() {
+        return controller.isPretty();
     }
 
     protected void flush() {
-        if (writer != null) {
-            try {
-                this.writer.flush();
-            } catch (IOException e) {
-                throw new JsonException(e);
-            }
-        }
+        this.json.flush();
     }
 
+    protected void mark(int chars) {
+        if (!this.isWritable()) json.mark(chars);
+    }
+
+    protected void writeString(String value) {
+        if (this.isWritable()) json.writeString(value);
+    }
+
+    protected void writeChar(char c) {
+        if (this.isWritable()) json.writeChar(c);
+    }
+
+    protected char readChar() {
+        if (!this.isWritable()) return json.readChar();
+        else return 0;
+    }
+
+    protected void reset() {
+        this.json.reset();
+    }
+
+
 }
+

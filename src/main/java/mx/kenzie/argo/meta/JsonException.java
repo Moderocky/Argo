@@ -35,4 +35,5 @@ public class JsonException extends RuntimeException {
     public Map<String, Object> getData() {
         return data != null ? data : new HashMap<>();
     }
+
 }

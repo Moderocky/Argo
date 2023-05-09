@@ -26,7 +26,7 @@ public class UnicodeTest {
         map.put("hello", "Test \u001b Test");
         map.put("there", "Test \\u001b Test");
         final String json = Json.toJson(map);
-        assert json.equals("{\"there\": \"Test \\u001b Test\",\"hello\": \"Test \u001B Test\"}") : json;
+        assert json.equals("{\"there\": \"Test \\u001b Test\", \"hello\": \"Test \u001B Test\"}") : json;
         final Map<String, Object> result = Json.fromJson(json);
         assert result.get("hello").equals(map.get("hello"));
     }

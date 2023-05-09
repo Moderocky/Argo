@@ -73,7 +73,7 @@ public class ObjectAccessTest {
         result.hello = "there";
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"a\": 2,\"b\": 0,\"hello\": \"there\"}") : string;
+        assert string.equals("{\"a\": 2, \"b\": 0, \"hello\": \"there\"}") : string;
     }
 
     @Test
@@ -108,7 +108,7 @@ public class ObjectAccessTest {
         final Result result = new Result();
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"hello\": \"there\",\"child\": {\"bean\": 3}}") : string;
+        assert string.equals("{\"hello\": \"there\", \"child\": {\"bean\": 3}}") : string;
     }
 
     @Test
@@ -121,7 +121,7 @@ public class ObjectAccessTest {
         final Result result = new Result();
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"numbers\": [5,6,7],\"hello\": \"there\"}") : string;
+        assert string.equals("{\"numbers\": [5, 6, 7], \"hello\": \"there\"}") : string;
         final Result test = Json.fromJson(string, new Result());
         assert test != null;
         assert test.hello.equals(result.hello) : test.hello;
@@ -141,7 +141,7 @@ public class ObjectAccessTest {
         result.children[0].a = 2;
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"children\": [{\"a\": 2},{\"a\": 1}]}") : string;
+        assert string.equals("{\"children\": [{\"a\": 2}, {\"a\": 1}]}") : string;
         final Result test = Json.fromJson(string, new Result());
         assert test != null;
         assert test.children != null;

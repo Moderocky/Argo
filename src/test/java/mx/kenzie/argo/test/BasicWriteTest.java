@@ -39,7 +39,7 @@ public class BasicWriteTest {
         start.put("hello", "there");
         start.put("general", "kenobi");
         final String string = Json.toJson(start);
-        assert string.equals("{\"general\": \"kenobi\",\"hello\": \"there\"}") : string;
+        assert string.equals("{\"general\": \"kenobi\", \"hello\": \"there\"}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -55,7 +55,7 @@ public class BasicWriteTest {
         start.put("c", null);
         start.put("d", true);
         final String string = Json.toJson(start);
-        assert string.equals("{\"a\": 1,\"b\": -12.5,\"c\": null,\"d\": true,\"hello\": \"there\"}") : string;
+        assert string.equals("{\"a\": 1, \"b\": -12.5, \"c\": null, \"d\": true, \"hello\": \"there\"}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -74,7 +74,7 @@ public class BasicWriteTest {
         list.add("bean");
         start.put("list", list);
         final String string = Json.toJson(start);
-        assert string.equals("{\"hello\": \"there\",\"list\": [12,\"bean\"],\"child\": {\"hello\": \"there\"}}") : string;
+        assert string.equals("{\"hello\": \"there\", \"list\": [12, \"bean\"], \"child\": {\"hello\": \"there\"}}") : string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -99,7 +99,7 @@ public class BasicWriteTest {
         start.add(null);
         start.add(23);
         final String string = Json.toJson(start);
-        assert string.equals("[\"beans\",null,23]") : string;
+        assert string.equals("[\"beans\", null, 23]") : string;
         try (final Json json = new Json(string)) {
             final List<Object> end = json.toList();
             assert start.equals(end);
@@ -120,11 +120,11 @@ public class BasicWriteTest {
         final String string = Json.toJson(start, "  ");
         assert string.equals("""
             {
-              "hello": "there",
+              "hello": "there",\s
               "list": [
-                12,
+                12,\s
                 "bean"
-              ],
+              ],\s
               "child": {
                 "hello": "there"
               }

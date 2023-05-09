@@ -37,7 +37,7 @@ public class WriterTest {
             Map.of("hello", "there"),
             Map.of("hello", "there")
         ));
-        assert stream.toString().equals("[{\"hello\": \"there\"},{\"hello\": \"there\"}]") : stream;
+        assert stream.toString().equals("[{\"hello\": \"there\"}, {\"hello\": \"there\"}]") : stream;
     }
 
     @Test
