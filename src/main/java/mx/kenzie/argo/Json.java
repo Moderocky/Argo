@@ -38,7 +38,6 @@ public class Json implements Closeable, AutoCloseable {
     protected int state = START;
     private transient StringBuilder currentKey, currentValue;
 
-    //<editor-fold desc="Constructors" defaultstate="collapsed">
     public Json(java.io.Reader reader) {
         this.reader = reader;
     }
@@ -67,13 +66,11 @@ public class Json implements Closeable, AutoCloseable {
     public Json(OutputStream stream) {
         this.writer = new OutputStreamWriter(stream);
     }
-    //</editor-fold>
 
     public Json(java.io.Writer writer) {
         this.writer = writer;
     }
 
-    //<editor-fold desc="Helpers" defaultstate="collapsed">
     protected static String charToCode(Object object) {
         final StringBuilder builder = new StringBuilder();
         for (final char c : object.toString().toCharArray()) {
@@ -90,7 +87,6 @@ public class Json implements Closeable, AutoCloseable {
         return new String(characters);
     }
 
-    //<editor-fold desc="Static Helper Methods" defaultstate="collapsed">
     public static String toJson(Object object, String indent, String... keys) {
         final StringWriter writer = new StringWriter();
         final Json json = new Json(writer);
@@ -101,7 +97,6 @@ public class Json implements Closeable, AutoCloseable {
         new Json(writer).write(map, indent, 0);
         return writer.toString();
     }
-    //</editor-fold>
 
     public static String toJson(Object object, Class<?> type, String indent) {
         final StringWriter writer = new StringWriter();
@@ -126,7 +121,6 @@ public class Json implements Closeable, AutoCloseable {
         new Json(writer).write(map, indent, 0);
         return writer.toString();
     }
-    //</editor-fold>
 
     public static String toJson(Map<?, ?> map) {
         final StringWriter writer = new StringWriter();
@@ -139,7 +133,6 @@ public class Json implements Closeable, AutoCloseable {
         new Json(writer).write(list, indent, 0);
         return writer.toString();
     }
-    //</editor-fold>
 
     public static String toJson(List<?> list) {
         final StringWriter writer = new StringWriter();
@@ -192,13 +185,11 @@ public class Json implements Closeable, AutoCloseable {
         }
     }
 
-    //<editor-fold desc="Construction" defaultstate="collapsed">
     @SuppressWarnings("unchecked")
     private <Type> Constructor<Type> createConstructor0(Class<Type> type) throws NoSuchMethodException {
         final Constructor<?> shift = Object.class.getConstructor();
         return (Constructor<Type>) ReflectionFactory.getReflectionFactory().newConstructorForSerialization(type, shift);
     }
-    //</editor-fold>
 
     protected <Type> Type createObject(Class<Type> type) {
         try {
@@ -247,7 +238,6 @@ public class Json implements Closeable, AutoCloseable {
         }
     }
 
-    //<editor-fold desc="Writers" defaultstate="collapsed">
     protected void write(Object object, Class<?> type, Map<String, Object> map) {
         final Set<Field> fields = new HashSet<>();
         fields.addAll(List.of(type.getDeclaredFields()));
@@ -311,7 +301,6 @@ public class Json implements Closeable, AutoCloseable {
         this.write(object, object.getClass(), (String) null);
     }
 
-    //<editor-fold desc="Converters" defaultstate="collapsed">
     private Object convertSimple(Object data, Class<?> expected) {
         if (data instanceof List<?> list) return this.convertList(expected, list);
         else if (data instanceof Map<?, ?> map) return this.toObject(this.createObject(expected), expected, map);
@@ -353,7 +342,6 @@ public class Json implements Closeable, AutoCloseable {
         return object;
     }
 
-    //<editor-fold desc="Object Wrappers" defaultstate="collapsed">
     @SuppressWarnings("all")
     protected <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
         assert object != null : "Object was null.";
@@ -447,7 +435,6 @@ public class Json implements Closeable, AutoCloseable {
     public <Component> Component[] toArray(Class<Component> type) {
         return (Component[]) this.toArray(Array.newInstance(type, 0));
     }
-    //</editor-fold>
 
     @SuppressWarnings({"all"})
     public <Container> Container toArray(Container array) {
@@ -465,7 +452,6 @@ public class Json implements Closeable, AutoCloseable {
         return container;
     }
 
-    //<editor-fold desc="Readers" defaultstate="collapsed">
     public boolean willBeMap() {
         char c;
         while (true) {
@@ -514,7 +500,6 @@ public class Json implements Closeable, AutoCloseable {
         final Container map = supplier.get();
         return this.toMap(map);
     }
-    //</editor-fold>
 
     public <Container extends Map<String, Object>> Container toMap(final Container map) {
         if (reader == null) throw new JsonException("This Json controller has no reader.");
@@ -740,9 +725,7 @@ public class Json implements Closeable, AutoCloseable {
             throw new JsonException(ex);
         }
     }
-    //</editor-fold>
 
-    //<editor-fold desc="Reader Classes" defaultstate="collapsed">
     private interface Reader {
         Object read();
     }
@@ -869,7 +852,6 @@ public class Json implements Closeable, AutoCloseable {
         }
 
     }
-    //</editor-fold>
 
     @SuppressWarnings({"SameParameterValue", "TypeParameterHidesVisibleType"})
     public static class JsonHelper extends Json {

@@ -6,7 +6,7 @@
 
     <groupId>mx.kenzie</groupId>
     <artifactId>argo</artifactId>
-    <version>1.1.10</version>
+    <version>1.2.0</version>
     <name>Argo</name>
     <description>A J(a)son library.</description>
 
