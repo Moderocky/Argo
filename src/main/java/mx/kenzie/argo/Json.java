@@ -679,7 +679,7 @@ public class Json implements Closeable, AutoCloseable {
     protected void flush() {
         if (writer != null) {
             try {
-                writer.flush();
+                this.writer.flush();
             } catch (IOException e) {
                 throw new JsonException(e);
             }
@@ -697,6 +697,7 @@ public class Json implements Closeable, AutoCloseable {
     protected void writeString(String value) {
         try {
             this.writer.write(value);
+            this.flush();
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
@@ -1071,7 +1072,7 @@ class JsonArray {
     protected void flush() {
         if (writer != null) {
             try {
-                writer.flush();
+                this.writer.flush();
             } catch (IOException e) {
                 throw new JsonException(e);
             }
