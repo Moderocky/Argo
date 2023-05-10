@@ -61,4 +61,20 @@ public class JsonObjectTest {
         }
     }
 
+    @Test
+    public void writeObject() {
+        final Object first = new Object() {
+            final String hello = "there";
+        };
+        final Object second = new Object() {
+            final String general = "kenobi";
+        };
+        final StringWriter writer = new StringWriter();
+        try (Json json = new Json(writer); JsonObject object = new JsonObject(json)) {
+            object.writeObject(first);
+            object.writeObject(second);
+        }
+        assert check(writer.toString(), "{\"hello\": \"there\", \"general\": \"kenobi\"}");
+    }
+
 }

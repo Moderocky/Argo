@@ -39,6 +39,16 @@ public class JsonObject extends JsonElement {
         this.writeValue(value);
     }
 
+    public <Type> void writeObject(Type object) {
+        this.writeObject(object, object.getClass());
+    }
+
+    public <Type> void writeObject(Object object, Class<Type> type) {
+        final Map<String, Object> map = new LinkedHashMap<>();
+        this.json.write(object, type, map);
+        this.write(map);
+    }
+
     public String readKey() {
         char c;
         do {
