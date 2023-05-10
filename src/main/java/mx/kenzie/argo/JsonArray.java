@@ -22,6 +22,13 @@ public class JsonArray extends JsonElement {
         for (Object value : list) this.writeValue(value);
     }
 
+    public void writeValue(JsonData value) {
+        if (!first) this.writeString(", ");
+        this.writeString(controller.getIndent());
+        value.write(json);
+        this.first = false;
+    }
+
     public void writeValue(Object value) {
         if (!first) this.writeString(", ");
         this.writeString(controller.getIndent());
@@ -29,7 +36,7 @@ public class JsonArray extends JsonElement {
         this.first = false;
     }
 
-    public Object readValue() {
+    private char skip() {
         char c;
         do {
             this.mark(4);
@@ -37,8 +44,21 @@ public class JsonArray extends JsonElement {
         } while (c == ',' || Character.isWhitespace(c));
         if (c == ']') {
             this.reset();
-            return END;
         }
+        return c;
+    }
+
+    public <Type extends JsonData> Type readValue(Type thing) {
+        final char c = this.skip();
+        if (c == ']') return thing;
+        this.reset();
+        thing.read(json);
+        return thing;
+    }
+
+    public Object readValue() {
+        final char c = this.skip();
+        if (c == ']') return END;
         return Json.read(c, json);
     }
 

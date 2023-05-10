@@ -40,7 +40,6 @@ public class Json implements Closeable, AutoCloseable {
     protected transient Writer writer;
     protected int state = START;
     protected WriteController controller = new WriteController(null);
-    private transient StringBuilder currentKey, currentValue;
 
     public Json(java.io.Reader reader) {
         this.reader = reader;
@@ -58,10 +57,11 @@ public class Json implements Closeable, AutoCloseable {
         this.reader = new BufferedReader(new InputStreamReader(reader));
     }
 
+    @Deprecated
     public Json(File file) {
         try {
             this.reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-            this.writer = new OutputStreamWriter(new FileOutputStream(file));
+            this.writer = null;
         } catch (FileNotFoundException e) {
             throw new JsonException(e);
         }
@@ -241,6 +241,7 @@ public class Json implements Closeable, AutoCloseable {
         else if (value instanceof List<?> child) try (JsonArray array = new JsonArray(json)) {
             array.write(child);
         }
+        else if (value instanceof JsonData data) data.write(json);
         json.flush();
     }
 
@@ -648,10 +649,9 @@ public class Json implements Closeable, AutoCloseable {
     public void close() {
         try {
             this.state = 0;
-            this.currentValue = null;
-            this.currentKey = null;
+            this.controller = null;
             if (reader != null) reader.close();
-            if (writer != null) this.writer.close();
+            if (writer != null) writer.close();
         } catch (IOException ex) {
             throw new JsonException(ex);
         }
@@ -898,7 +898,6 @@ abstract class JsonElement implements Closeable {
     protected void reset() {
         this.json.reset();
     }
-
 
 }
 
