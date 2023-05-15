@@ -45,7 +45,7 @@ public class JsonObject extends JsonElement {
 
     public <Type> void writeObject(Object object, Class<Type> type) {
         final Map<String, Object> map = new LinkedHashMap<>();
-        this.json.write(object, type, map);
+        this.json.marshal(object, type, map);
         this.write(map);
     }
 
@@ -89,12 +89,12 @@ public class JsonObject extends JsonElement {
     }
 
     public <Type> Type toObject(Type object) {
-        return json.toObject(object, object.getClass(), this.readMap());
+        return json.unmarshal(object, object.getClass(), this.readMap());
     }
 
     public <Type> Type toObject(Class<Type> type) {
         final Type object = json.createObject(type);
-        return json.toObject(object, type, this.readMap());
+        return json.unmarshal(object, type, this.readMap());
     }
 
     @Override

@@ -1,6 +1,5 @@
-package mx.kenzie.argo.test;
+package mx.kenzie.argo;
 
-import mx.kenzie.argo.Json;
 import org.junit.Test;
 
 import java.util.HashMap;

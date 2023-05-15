@@ -1,10 +1,12 @@
-package mx.kenzie.argo.test;
+package mx.kenzie.argo;
 
-import mx.kenzie.argo.Json;
-import mx.kenzie.argo.meta.Any;
+import mx.kenzie.grammar.Any;
 import org.junit.Test;
 
+import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class ObjectAccessTest {
 
@@ -73,7 +75,7 @@ public class ObjectAccessTest {
         result.hello = "there";
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"a\": 2, \"b\": 0, \"hello\": \"there\"}") : string;
+        assert string.equals("{\"b\": 0, \"a\": 2, \"hello\": \"there\"}") : string;
     }
 
     @Test
@@ -121,7 +123,7 @@ public class ObjectAccessTest {
         final Result result = new Result();
         final String string = Json.toJson(result);
         assert string != null;
-        assert string.equals("{\"numbers\": [5, 6, 7], \"hello\": \"there\"}") : string;
+        assert string.equals("{\"hello\": \"there\", \"numbers\": [5, 6, 7]}") : string;
         final Result test = Json.fromJson(string, new Result());
         assert test != null;
         assert test.hello.equals(result.hello) : test.hello;
@@ -139,6 +141,7 @@ public class ObjectAccessTest {
         }
         final Result result = new Result();
         result.children[0].a = 2;
+        final Map<String, Object> map = new Json(new StringWriter()).marshal(result, Result.class, new LinkedHashMap<>());
         final String string = Json.toJson(result);
         assert string != null;
         assert string.equals("{\"children\": [{\"a\": 2}, {\"a\": 1}]}") : string;
