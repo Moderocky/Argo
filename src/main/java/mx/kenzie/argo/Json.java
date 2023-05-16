@@ -250,35 +250,6 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
         return super.createObject(type);
     }
 
-    private Object deconstructSimple(Object value, Class<?> component) {
-        if (value == null) return null;
-        if (value instanceof String) return value;
-        if (value instanceof Number) return value;
-        if (value instanceof Boolean) return value;
-        if (value.getClass().isArray()) {
-            final List<Object> list = new ArrayList<>();
-            this.deconstructArray(value, component.getComponentType(), list, false);
-            return list;
-        }
-        final Map<String, Object> map = new LinkedHashMap<>();
-        this.marshal(value, component, map);
-        return map;
-    }
-
-    private void deconstructArray(Object array, Class<?> component, List<Object> list, boolean any) {
-        if (component.isPrimitive()) {
-            if (array instanceof int[] numbers) for (int number : numbers) list.add(number);
-            else if (array instanceof long[] numbers) for (long number : numbers) list.add(number);
-            else if (array instanceof double[] numbers) for (double number : numbers) list.add(number);
-            else if (array instanceof float[] numbers) for (float number : numbers) list.add(number);
-            else if (array instanceof boolean[] numbers) for (boolean number : numbers) list.add(number);
-        } else {
-            final Object[] objects = (Object[]) array;
-            if (any) for (final Object object : objects) list.add(this.deconstructSimple(object, object.getClass()));
-            else for (final Object object : objects) list.add(this.deconstructSimple(object, component));
-        }
-    }
-
     @Override
     protected <Type, Container extends Map<String, Object>> Container marshal(Object object, Class<Type> type, Container container) {
         return super.marshal(object, type, container);
