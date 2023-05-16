@@ -284,45 +284,14 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
         this.write(object, object.getClass(), (String) null);
     }
 
-    private Object convertSimple(Object data, Class<?> expected) {
-        if (data instanceof List<?> list) return this.convertList(expected, list);
-        else if (data instanceof Map<?, ?> map) return this.unmarshal(this.createObject(expected), expected, map);
-        else return data;
+    @Override
+    protected Object construct(Object data, Class<?> expected) {
+        return super.construct(data, expected);
     }
 
-    Object convertList(Class<?> type, List<?> list) {
-        final Class<?> component = type.getComponentType();
-        final Object object = Array.newInstance(component, list.size());
-        final Object[] objects = list.toArray();
-        if (component.isPrimitive()) {
-            if (component == boolean.class) for (int i = 0; i < objects.length; i++) {
-                final Object value = objects[i];
-                Array.setBoolean(object, i, (boolean) value);
-            }
-            else if (component == int.class) for (int i = 0; i < objects.length; i++) {
-                final Object value = objects[i];
-                Array.setInt(object, i, ((Number) value).intValue());
-            }
-            else if (component == long.class) for (int i = 0; i < objects.length; i++) {
-                final Object value = objects[i];
-                Array.setLong(object, i, ((Number) value).longValue());
-            }
-            else if (component == double.class) for (int i = 0; i < objects.length; i++) {
-                final Object value = objects[i];
-                Array.setDouble(object, i, ((Number) value).doubleValue());
-            }
-            else if (component == float.class) for (int i = 0; i < objects.length; i++) {
-                final Object value = objects[i];
-                Array.setFloat(object, i, ((Number) value).floatValue());
-            }
-        } else {
-            final Object[] array = (Object[]) object;
-            for (int i = 0; i < objects.length; i++) {
-                final Object value = objects[i];
-                array[i] = component.cast(this.convertSimple(value, component));
-            }
-        }
-        return object;
+    @Override
+    protected Object constructArray(Class<?> type, Collection<?> list) {
+        return super.constructArray(type, list);
     }
 
     @Deprecated

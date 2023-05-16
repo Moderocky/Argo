@@ -121,7 +121,7 @@ public class JsonArray extends JsonElement {
         final Container container;
         if (Array.getLength(array) < 1) container = (Container) Array.newInstance(component, list.size());
         else container = array;
-        final Object source = json.convertList(container.getClass(), list);
+        final Object source = json.constructArray(container.getClass(), list);
         final int a = Array.getLength(container), b = Array.getLength(source);
         System.arraycopy(source, 0, container, 0, Math.min(a, b));
         return container;
