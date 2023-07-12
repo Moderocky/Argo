@@ -496,11 +496,14 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
     }
 
     private interface Reader {
+
         Object read();
+
     }
 
     protected record BooleanReader(java.io.Reader stream, StringBuilder builder)
         implements Json.Reader {
+
         public Object read() {
             try {
                 this.stream.mark(4);
@@ -528,10 +531,12 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
                 throw new JsonException(ex);
             }
         }
+
     }
 
     protected record NullReader(java.io.Reader stream, StringBuilder builder)
         implements Json.Reader {
+
         public Object read() {
             try {
                 this.stream.mark(4);
@@ -552,6 +557,7 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
                 throw new JsonException(ex);
             }
         }
+
     }
 
     protected record StringReader(java.io.Reader stream, StringBuilder builder)
@@ -676,6 +682,7 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
         }
 
     }
+
 }
 
 abstract class JsonElement implements Closeable {
