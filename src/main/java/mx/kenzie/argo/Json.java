@@ -550,7 +550,7 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
                     + (char) this.stream.read()
                     + (char) this.stream.read()
                     + (char) this.stream.read()
-                    + (char) this.stream.read() + "...' when expecting null.");
+                    + (char) this.stream.read() + "...' when expecting 'null'.");
             } catch (EOFException ex) {
                 throw new JsonException("Reached end of Json without finishing expected null.");
             } catch (IOException ex) {
@@ -629,7 +629,7 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
     }
 
     @Deprecated
-    @SuppressWarnings({"SameParameterValue", "TypeParameterHidesVisibleType"})
+    @SuppressWarnings({"SameParameterValue"})
     public static class JsonHelper extends Json {
 
         public JsonHelper() {
