@@ -34,7 +34,7 @@ Converting a json array will not convert its `Object` contents.
 <dependency>
     <groupId>mx.kenzie</groupId>
     <artifactId>argo</artifactId>
-    <version>1.1.10</version>
+    <version>1.2.2</version>
 </dependency>
 ```
 
