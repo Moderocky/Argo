@@ -260,6 +260,21 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
         return super.unmarshal(object, type, container);
     }
 
+    @Override
+    protected <Type, Container extends Map<?, ?>> Type unmarshal(Class<Type> type, Container container) {
+        return super.unmarshal(type, container);
+    }
+
+    @Override
+    protected <Type, Container extends Map<?, ?>> Type unmarshal(Type object, Container container) {
+        return super.unmarshal(object, container);
+    }
+
+    @Override
+    protected Map<String, Object> marshal(Object object) {
+        return super.marshal(object);
+    }
+
     @Deprecated
     protected void write(Object object, Class<?> type, Map<String, Object> map) {
         this.marshal(object, type, map);
@@ -314,8 +329,8 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
     }
 
     public <Type> Type toObject(Class<Type> type) {
-        final Type object = this.createObject(type);
-        return this.toObject(object, type);
+        final Map<String, Object> map = this.toMap(new HashMap<>());
+        return this.unmarshal(type, map);
     }
 
     public Object[] toArray() {

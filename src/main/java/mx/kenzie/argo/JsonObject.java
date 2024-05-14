@@ -93,8 +93,7 @@ public class JsonObject extends JsonElement {
     }
 
     public <Type> Type toObject(Class<Type> type) {
-        final Type object = json.createObject(type);
-        return json.unmarshal(object, type, this.readMap());
+        return json.unmarshal(type, this.readMap());
     }
 
     @Override

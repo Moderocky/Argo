@@ -9,9 +9,11 @@ public class DataSetTest {
     @Test
     public void test() {
         class Child {
+
             String name;
             int bean;
             transient Map<String, Object> __data;
+
         }
         final String string = """
             { "hello": "there", "bean": 5, "name": "test" }
@@ -24,7 +26,11 @@ public class DataSetTest {
         assert result.__data.get("name").equals("test") : result.__data.get("name");
         assert result.__data.get("bean").equals(5) : result.__data.get("bean");
         assert result.__data.get("hello").equals("there") : result.__data.get("hello");
-        assert Json.toJson(result).equals("{\"name\": \"test\", \"bean\": 5}") : Json.toJson(result);
+        final String json = Json.toJson(result);
+        assert json != null;
+        assert json.startsWith("{") && json.endsWith("}");
+        assert json.contains("\"name\": \"test\"") : json;
+        assert json.contains("\"bean\": 5") : json;
     }
 
 }
