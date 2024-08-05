@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@SuppressWarnings("FieldMayBeFinal")
 public class BasicWriteTest {
 
     @Test
@@ -73,7 +74,8 @@ public class BasicWriteTest {
         list.add("bean");
         start.put("list", list);
         final String string = Json.toJson(start);
-        assert string.equals("{\"hello\": \"there\", \"list\": [12, \"bean\"], \"child\": {\"hello\": \"there\"}}") : string;
+        assert string.equals("{\"hello\": \"there\", \"list\": [12, \"bean\"], \"child\": {\"hello\": \"there\"}}") :
+            string;
         try (final Json json = new Json(string)) {
             final Map<String, Object> end = json.toMap();
             assert start.equals(end);
@@ -133,10 +135,23 @@ public class BasicWriteTest {
     @Test
     public void escapes() {
         class Result {
+
             final String hello = "there\ngeneral\tkenobi";
+
         }
         final String string = Json.toJson(new Result());
         assert string.equals("{\"hello\": \"there\\ngeneral\\tkenobi\"}") : string;
+    }
+
+    @Test
+    public void array() {
+        class Thing {
+
+            public String hello = "there";
+
+        }
+        final String string = Json.toJsonArray(new Thing(), new Thing());
+        assert string.equals("[{\"hello\": \"there\"}, {\"hello\": \"there\"}]") : string;
     }
 
 }

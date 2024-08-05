@@ -110,6 +110,20 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
         return writer.toString();
     }
 
+    public static <Component> String toJsonArray(Component... array) {
+        return toJsonArray(null, array);
+    }
+
+    public static <Component> String toJsonArray(String indent, Component... array) {
+        final StringWriter writer = new StringWriter();
+        final List<Object> list = new ArrayList<>();
+        try (Json json = new Json(writer)) {
+            json.deconstructArray(array, array.getClass().getComponentType(), list, true);
+            json.write(list, indent, 0);
+        }
+        return writer.toString();
+    }
+
     public static String toJson(Object object) {
         final StringWriter writer = new StringWriter();
         new Json(writer).write(object);
@@ -251,7 +265,8 @@ public class Json extends Grammar implements Closeable, AutoCloseable {
     }
 
     @Override
-    protected <Type, Container extends Map<String, Object>> Container marshal(Object object, Class<Type> type, Container container) {
+    protected <Type, Container extends Map<String, Object>> Container marshal(Object object, Class<Type> type,
+                                                                              Container container) {
         return super.marshal(object, type, container);
     }
 
