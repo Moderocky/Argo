@@ -1,21 +1,21 @@
 package mx.kenzie.argo;
 
-import mx.kenzie.grammar.Any;
 import org.junit.Test;
 
-import java.io.StringWriter;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+@SuppressWarnings("FieldMayBeFinal")
 public class ObjectAccessTest {
 
     @Test
     public void simple() {
         final String string = """
-            { "hello": "there" }
-            """;
-        final Simple result = Json.fromJson(string, new Simple());
+                { "hello": "there" }
+                """;
+        final Simple result = Json.fromString(string, Simple.class);
         assert result != null;
         assert result.hello.equals("there");
     }
@@ -29,9 +29,9 @@ public class ObjectAccessTest {
 
         }
         final String string = """
-            { "hello": "there" }
-            """;
-        final Result result = Json.fromJson(string, new Result());
+                { "hello": "there" }
+                """;
+        final Result result = Json.fromString(string, Result.class);
         assert result != null;
         assert result.hello.equals("there");
     }
@@ -44,9 +44,9 @@ public class ObjectAccessTest {
 
         }
         final String string = """
-            { "a": 1, "b": 6 }
-            """;
-        final Result result = Json.fromJson(string, new Result());
+                { "a": 1, "b": 6 }
+                """;
+        final Result result = Json.fromString(string, Result.class);
         assert result != null;
         assert result.a == 1;
         assert result.b == 6;
@@ -61,9 +61,9 @@ public class ObjectAccessTest {
 
         }
         final String string = """
-            { "a": 1, "b": 6, "hello": "there" }
-            """;
-        final Result result = Json.fromJson(string, new Result());
+                { "a": 1, "b": 6, "hello": "there" }
+                """;
+        final Result result = Json.fromString(string, Result.class);
         assert result != null;
         assert result.a == 1 : result.a;
         assert result.b == 6 : result.b;
@@ -81,12 +81,12 @@ public class ObjectAccessTest {
         final Result result = new Result();
         result.a--;
         result.hello = "there";
-        final String string = Json.toJson(result);
+        final String string = Json.toString(result);
         assert string != null;
         assert string.startsWith("{") && string.endsWith("}");
-        assert string.contains("\"hello\": \"there\""): string;
-        assert string.contains("\"b\": 0"): string;
-        assert string.contains("\"a\": 2"): string;
+        assert string.contains("\"hello\": \"there\"") : string;
+        assert string.contains("\"b\": 0") : string;
+        assert string.contains("\"a\": 2") : string;
     }
 
     @Test
@@ -103,9 +103,9 @@ public class ObjectAccessTest {
 
         }
         final String string = """
-            { "hello": "there", "child": { "bean": 5 } }
-            """;
-        final Result result = Json.fromJson(string, new Result());
+                { "hello": "there", "child": { "bean": 5 } }
+                """;
+        final Result result = Json.fromString(string, Result.class);
         assert result != null;
         assert result.hello.equals("there") : result.hello;
         assert result.child != null;
@@ -127,11 +127,11 @@ public class ObjectAccessTest {
 
         }
         final Result result = new Result();
-        final String string = Json.toJson(result);
+        final String string = Json.toString(result);
         assert string != null;
         assert string.startsWith("{") && string.endsWith("}");
-        assert string.contains("\"hello\": \"there\""): string;
-        assert string.contains("\"child\": {\"bean\": 3}"): string;
+        assert string.contains("\"hello\": \"there\"") : string;
+        assert string.contains("\"child\": {\"bean\": 3}") : string;
     }
 
     @Test
@@ -144,10 +144,10 @@ public class ObjectAccessTest {
 
         }
         final Result result = new Result();
-        final String string = Json.toJson(result);
-        assert string != null;
+        final String string = Json.toString(result);
+        assertNotNull(string);
         assert string.equals("{\"hello\": \"there\", \"numbers\": [5, 6, 7]}") : string;
-        final Result test = Json.fromJson(string, new Result());
+        final Result test = Json.fromString(string, Result.class);
         assert test != null;
         assert test.hello.equals(result.hello) : test.hello;
         assert Arrays.equals(test.numbers, result.numbers) : test.numbers;
@@ -168,12 +168,10 @@ public class ObjectAccessTest {
         }
         final Result result = new Result();
         result.children[0].a = 2;
-        final Map<String, Object> map = new Json(new StringWriter()).marshal(result, Result.class,
-            new LinkedHashMap<>());
-        final String string = Json.toJson(result);
+        final String string = Json.toString(result);
         assert string != null;
         assert string.equals("{\"children\": [{\"a\": 2}, {\"a\": 1}]}") : string;
-        final Result test = Json.fromJson(string, new Result());
+        final Result test = Json.fromString(string, Result.class);
         assert test != null;
         assert test.children != null;
         assert test.children.length == 2;
@@ -195,9 +193,9 @@ public class ObjectAccessTest {
 
         }
         final String string = """
-            { "children": [ { "a": 5 }, { "a": 3 } ] }
-            """;
-        final Result result = Json.fromJson(string, new Result());
+                { "children": [ { "a": 5 }, { "a": 3 } ] }
+                """;
+        final Result result = Json.fromString(string, Result.class);
         assert result != null;
         assert result.children != null;
         assert result.children.length == 2;
@@ -209,12 +207,14 @@ public class ObjectAccessTest {
     @SuppressWarnings("FieldMayBeFinal")
     public void directArray() {
         final String string = """
-            [ 1, 3, 5 ]
-            """;
-        final int[] result = Json.fromJson(string, new int[0]);
-        assert result != null;
-        assert result.length == 3;
-        assert result[1] == 3;
+                [ 1, 3, 5 ]
+                """;
+        final int[] result = Json.fromString(string, int[].class);
+        assertNotNull(result);
+        assertEquals(3, result.length);
+        assertEquals(1, result[0]);
+        assertEquals(3, result[1]);
+        assertEquals(5, result[2]);
     }
 
     @Test
@@ -223,16 +223,16 @@ public class ObjectAccessTest {
         }
         class Child extends Bean {
 
-            final int number = 5;
+            int number = 5;
 
         }
         class Result {
 
-            final @Any Bean child = new Child();
+            Bean child = new Child();
 
         }
-        final String string = Json.toJson(new Result());
-        assert string != null;
+        final String string = Json.toString(new Result());
+        assertNotNull(string);
         assert string.equals("{\"child\": {\"number\": 5}}") : string;
     }
 
@@ -242,16 +242,17 @@ public class ObjectAccessTest {
         }
         class Child extends Bean {
 
-            final int number = 5;
+            int number = 5;
 
         }
+        @SuppressWarnings("FieldMayBeFinal")
         class Result {
 
-            final @Any Bean child = new Child();
+            Bean child = new Child();
 
         }
-        final String string = Json.toJson(new Result());
-        assert string != null;
+        final String string = Json.toString(new Result());
+        assertNotNull(string);
         assert string.equals("{\"child\": {\"number\": 5}}") : string;
     }
 
@@ -265,13 +266,13 @@ public class ObjectAccessTest {
         }
         class Result {
 
-            final Child child = new Child();
+            Child child = new Child();
 
         }
         final String string = """
-            { "hello": "there", "child": { "foo": 1 } }
-            """;
-        final Result result = Json.fromJson(string, new Result());
+                { "hello": "there", "child": { "foo": 1 } }
+                """;
+        final Result result = Json.fromString(string, Result.class);
         assert result != null;
         assert result.child.foo == 1 : result.child.foo;
         assert result.child.bar == 6 : result.child.bar;
@@ -282,13 +283,13 @@ public class ObjectAccessTest {
         record Person(String name, int age) {
         }
         final String string = """
-            { "name": "Jeremy", "age": 66 }""";
-        final Person result = Json.fromJson(string, Person.class);
+                { "name": "Jeremy", "age": 66 }""";
+        final Person result = Json.fromString(string, Person.class);
         assert result != null;
         assert result.name.equals("Jeremy");
         assert result.age == 66;
         final Person person = new Person("Bearimy", 61);
-        final String json = Json.toJson(person);
+        final String json = Json.toString(person);
         assert json.startsWith("{") && json.endsWith("}");
         assert json.contains("\"age\": 61") : json;
         assert json.contains("\"name\": \"Bearimy\"") : json;

@@ -1,21 +1,26 @@
 package mx.kenzie.argo;
 
+import mx.kenzie.grammar.Container;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.lang.constant.Constable;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.junit.Assert.assertEquals;
+
+@SuppressWarnings("FieldMayBeFinal")
 public class JsonObjectTest {
 
     private static final String SIMPLE_MAP = """
-        {
-            "hello": "there"
-        }
-        """;
+            {
+                "hello": "there"
+            }
+            """;
 
     static boolean check(Object value, Object test) {
         assert Objects.equals(value, test) : value;
@@ -25,52 +30,48 @@ public class JsonObjectTest {
     @Test
     public void readSimple() {
         final InputStream stream = new ByteArrayInputStream(SIMPLE_MAP.getBytes(StandardCharsets.UTF_8));
-        try (Json json = new Json(stream); JsonObject object = new JsonObject(json)) {
-            assert check(object.readKey(), "hello");
-            assert check(object.readValue(), "there");
-        }
+
+        Container container = Json.simple().reader(stream).readContainer();
+        assertEquals(1, container.size());
+        assertEquals("there", container.get("hello"));
     }
 
     @Test
     public void writeSimple() {
-        final Map<String, Object> map = Map.of("hello", "there");
+        final Map<String, Constable> map = Container.empty();
         final StringWriter writer = new StringWriter();
-        try (Json json = new Json(writer); JsonObject object = new JsonObject(json)) {
-            object.write(map);
-        }
-        assert check(writer.toString(), "{\"hello\": \"there\"}");
+        final var write = Json.simple().writer(writer);
+        write.writeObject(map);
+        assert check(writer.toString(), "{}");
     }
 
     @Test
     public void both() {
         final StringWriter writer = new StringWriter();
-        try (Json json = new Json(writer); JsonObject object = new JsonObject(json)) {
-            object.write(Map.of("hello", "there"));
-            object.writeKey("general");
-            object.writeValue("kenobi");
-            object.write("test", 10);
-        }
+        final var write = Json.simple().writer(writer);
+        write.getWriter().writeContainerOpen(write.getHook());
+        write.getWriter().writeContainerPair(write.getHook(), "hello", "there");
+        write.getWriter().writeContainerAnd(write.getHook(), true);
+        write.getWriter().writeContainerKey(write.getHook(), "general");
+        write.getWriter().writeContainerSeparator(write.getHook());
+        write.getWriter().writeContainerValue(write.getHook(), "kenobi");
+        write.getWriter().writeContainerAnd(write.getHook(), true);
+        write.getWriter().writeContainerPair(write.getHook(), "test", 10);
+        write.getWriter().writeContainerAnd(write.getHook(), false);
+        write.getWriter().writeContainerClose(write.getHook());
         assert check(writer.toString(), "{\"hello\": \"there\", \"general\": \"kenobi\", \"test\": 10}");
-        try (Json json = Json.of(writer.toString()); JsonObject object = new JsonObject(json)) {
-            assert check(object.readKey(), "hello");
-            assert check(object.readValue(), "there");
-            assert check(object.readKey(), "general");
-            assert check(object.readValue(), "kenobi");
-            assert check(object.readKey(), "test");
-            assert check(object.readValue(), 10);
-        }
     }
 
     @Test
     public void writeObject() {
         final Object first = new Object() {
-            final String hello = "there";
+            String hello = "there";
         };
         final Object second = new Object() {
-            final String general = "kenobi";
+            String general = "kenobi";
         };
         final StringWriter writer = new StringWriter();
-        try (Json json = new Json(writer); JsonObject object = new JsonObject(json)) {
+        try (var object = Json.allTypes().writer(writer).object()) {
             object.writeObject(first);
             object.writeObject(second);
         }

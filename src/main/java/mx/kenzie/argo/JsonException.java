@@ -1,4 +1,4 @@
-package mx.kenzie.argo.meta;
+package mx.kenzie.argo;
 
 import java.util.HashMap;
 import java.util.Map;

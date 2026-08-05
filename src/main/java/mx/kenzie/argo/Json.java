@@ -1,767 +1,544 @@
 package mx.kenzie.argo;
 
-import mx.kenzie.argo.meta.JsonException;
-import mx.kenzie.grammar.Grammar;
-import org.jetbrains.annotations.Contract;
+import mx.kenzie.grail.function.Function;
+import mx.kenzie.grail.function.Supplier;
+import mx.kenzie.grammar.*;
+import mx.kenzie.grammar.unwrap.Unwrapper;
+import org.valross.constantine.Array;
 
 import java.io.*;
-import java.lang.reflect.Array;
+import java.lang.constant.Constable;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.util.*;
-import java.util.function.Supplier;
-import java.util.regex.Pattern;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
-@SuppressWarnings({"unchecked", "SameParameterValue"})
-public class Json extends Grammar implements Closeable, AutoCloseable {
+public class Json extends Grammar {
 
-    protected static final Pattern CODE_POINT = Pattern.compile("\\\\u\\w{4}");
-    static final byte
-        START = 0,
-        EXPECTING_KEY = 1,
-        IN_KEY = 2,
-        AFTER_KEY = 3,
-        EXPECTING_VALUE = 4,
-        EXPECTING_END = 5,
-        END = -1;
-    static final DecimalFormat FORMAT = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
+    public static final Null NULL = Null.INSTANCE;
+    protected static final char BEGIN_ARRAY = '[', BEGIN_OBJECT = '{', END_ARRAY = ']', END_OBJECT = '}', NAME_SEPARATOR = ':', VALUE_SEPARATOR = ',', SPACE = ' ', QUOTE = '"';
 
-    static {
-        FORMAT.setMaximumFractionDigits(340);
+    protected static final String STANDARD_INDENT_UNIT = "\t";
+    protected static final Charset STANDARD_CHARSET = StandardCharsets.UTF_8;
+
+    @SuppressWarnings({"StaticInitializerReferencesSubClass", "RedundantSuppression"})
+    private static final Supplier<Json, RuntimeException> NO_TYPES = Supplier.memoise(Frozen::new), ALL_OBJECTS = Supplier.memoise(() -> new Frozen(new Unsafe()));
+
+
+    public Json(Grammar grammar) {
+        super(grammar);
     }
 
-    protected transient java.io.Reader reader;
-    protected transient Writer writer;
-    protected int state = START;
-    protected WriteController controller = new WriteController(null);
-
-    public Json(java.io.Reader reader) {
-        this.reader = reader;
+    public Json() {
+        super();
     }
 
-    public Json(String string) {
-        this(string, StandardCharsets.UTF_8);
+    public static Json allTypes() {
+        return ALL_OBJECTS.get();
     }
 
-    public Json(String string, Charset charset) {
-        this(new ByteArrayInputStream(string.getBytes(charset)));
+    public static Json simple() {
+        return NO_TYPES.get();
     }
 
-    public Json(InputStream reader) {
-        this.reader = new BufferedReader(new InputStreamReader(reader));
+    public static Json serialising(Class<?>... classes) {
+        Json json = new Json();
+        for (Class<?> type : classes)
+            json.registerUncheckedObject(type);
+        return json;
     }
 
-    @Deprecated
-    public Json(File file) {
-        try {
-            this.reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-            this.writer = null;
-        } catch (FileNotFoundException e) {
-            throw new JsonException(e);
-        }
-    }
-
-    public Json(OutputStream stream) {
-        this.writer = new OutputStreamWriter(stream);
-    }
-
-    public Json(java.io.Writer writer) {
-        this.writer = writer;
-    }
-
-    protected static String charToCode(Object object) {
-        final StringBuilder builder = new StringBuilder();
-        for (final char c : object.toString().toCharArray()) {
-            if (c >= 128) builder.append("\\u").append(String.format("%04X", (int) c));
-            else builder.append(c);
-        }
+    public static String toString(Constable value, boolean prettyPrint) {
+        StringBuilder builder = new StringBuilder();
+        Write<?> writer = simple().writer(builder);
+        if (prettyPrint) writer.indent(STANDARD_INDENT_UNIT);
+        writer.writeValue(value);
         return builder.toString();
     }
 
-    protected static String codeToChar(Object object) {
-        final String string = object.toString();
-        final int point = Integer.parseInt(string.substring(2), 16);
-        final char[] characters = Character.toChars(point);
-        return new String(characters);
+    public static String toString(Constable value) {
+        return toString(value, false);
     }
 
-    public static String toJson(Object object, String indent, String... keys) {
-        final StringWriter writer = new StringWriter();
-        final Json json = new Json(writer);
-        final Map<String, Object> map = new LinkedHashMap<>();
-        json.marshal(object, object.getClass(), map);
-        final List<String> list = List.of(keys);
-        map.keySet().removeIf(key -> !list.contains(key));
-        new Json(writer).write(map, indent, 0);
-        return writer.toString();
+    public static String toString(Object unchecked, boolean prettyPrint) {
+        StringBuilder builder = new StringBuilder();
+        Write<?> writer = allTypes().writer(builder);
+        if (prettyPrint) writer.indent(STANDARD_INDENT_UNIT);
+        writer.writeObject(unchecked);
+        return builder.toString();
     }
 
-    public static String toJson(Object object, Class<?> type, String indent) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(object, type, indent);
-        return writer.toString();
+    public static String toString(Object unchecked) {
+        return toString(unchecked, false);
     }
 
-    public static String toJson(Object object, String indent) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(object, indent);
-        return writer.toString();
+    public static String toString(Object[] uncheckedArray, boolean prettyPrint) {
+        return toString((Object) uncheckedArray, prettyPrint);
     }
 
-    public static <Component> String toJsonArray(Component... array) {
-        return toJsonArray(null, array);
+    public static String toString(Object... uncheckedArray) {
+        return toString((Object) uncheckedArray, false);
     }
 
-    public static <Component> String toJsonArray(String indent, Component... array) {
-        final StringWriter writer = new StringWriter();
-        final List<Object> list = new ArrayList<>();
-        try (Json json = new Json(writer)) {
-            json.deconstructArray(array, array.getClass().getComponentType(), list, true);
-            json.write(list, indent, 0);
+    public static void printOut(Constable value, PrintStream stream, boolean prettyPrint) {
+        Write<?> writer = simple().writer(stream);
+        if (prettyPrint) writer.indent(STANDARD_INDENT_UNIT);
+        writer.writeValue(value);
+    }
+
+    public static void printOut(Constable value, PrintStream stream) {
+        printOut(value, stream, false);
+    }
+
+    public static void printOut(Object unchecked, PrintStream stream, boolean prettyPrint) {
+        Write<?> writer = allTypes().writer(stream);
+        if (prettyPrint) writer.indent(STANDARD_INDENT_UNIT);
+        writer.writeObject(unchecked);
+    }
+
+    public static void printOut(Object unchecked, PrintStream stream) {
+        printOut(unchecked, stream, false);
+    }
+
+    public static <Data extends Constable> Data fromString(String source) throws ClassCastException {
+        //noinspection unchecked
+        return (Data) simple().reader(source).readValue();
+    }
+
+    public static <Value> Value fromString(String source, Class<Value> valueType) {
+        return allTypes().reader(source).readObject(valueType);
+    }
+
+    public Read reader(Reader reader) {
+        return new Read(reader);
+    }
+
+    public Read reader(InputStream stream, Charset charset) {
+        return new Read(new BufferedReader(new InputStreamReader(stream, charset)));
+    }
+
+    public Read reader(InputStream stream) {
+        return this.reader(stream, STANDARD_CHARSET);
+    }
+
+    public Read reader(String source) {
+        return new Read(new StringReader(source));
+    }
+
+    public Write<StringBuilder> writer(StringBuilder builder) {
+        return new Write<>(new JsonStringBuilderWriter(), builder);
+    }
+
+    public Write<PrintStream> writer(PrintStream stream) {
+        return new Write<>(new JsonPrintStreamWriter(), stream);
+    }
+
+    public <Output extends Writer> Write<Output> writer(Output writer) {
+        if (writer instanceof PrintWriter) { // noinspection rawtypes, unchecked
+            return new Write(new JsonPrintWriter(), writer);
         }
-        return writer.toString();
+        return new Write<>(new JsonAnyWriter<>(), writer);
     }
 
-    public static String toJson(Object object) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(object);
-        return writer.toString();
+    public Write<OutputStream> writer(OutputStream stream, Charset charset) {
+        return new Write<>(new JsonOutputStreamWriter(charset), stream);
     }
 
-    public static String toJson(Map<?, ?> map, String indent) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(map, indent, 0);
-        return writer.toString();
+    public Write<OutputStream> writer(OutputStream stream) {
+        return this.writer(stream, STANDARD_CHARSET);
     }
 
-    public static String toJson(Map<?, ?> map) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(map);
-        return writer.toString();
+    protected static class Unsafe extends Grammar.Unsafe {
     }
 
-    public static String toJson(List<?> list, String indent) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(list, indent, 0);
-        return writer.toString();
-    }
+    protected static class Frozen extends Json {
 
-    public static String toJson(List<?> list) {
-        final StringWriter writer = new StringWriter();
-        new Json(writer).write(list);
-        return writer.toString();
-    }
+        final boolean frozen;
 
-    @Contract(pure = true)
-    public static Object parseJson(String string) {
-        if (string == null || string.isBlank()) return null;
-        try (final Json json = new Json(string.trim())) {
-            json.mark(4);
-            json.state = EXPECTING_VALUE;
-            return json.readElement(json.readChar());
+        {
+            frozen = true;
+        }
+
+        public Frozen(Grammar grammar) {
+            super(grammar);
+        }
+
+        public Frozen() {
+            super();
+        }
+
+        @Override
+        public <Type> void register(Class<Type> type, Unwrapper<Type> unwrapper) {
+            if (frozen) throw new UnsupportedOperationException();
+            else super.register(type, unwrapper);
+        }
+
+        @Override
+        public <Type extends Marshalled.Unmarshalled> void registerConstructor(Class<Type> type, Supplier<Type, GrammarException> noArgsConstructor) {
+            if (frozen) throw new UnsupportedOperationException();
+            else super.registerConstructor(type, noArgsConstructor);
+        }
+
+        @Override
+        public <Type> void registerMarshallingStrategy(Predicate<Object> predicate, Function<Type, Constable, GrammarException> strategy) {
+            if (frozen) throw new UnsupportedOperationException();
+            else super.registerMarshallingStrategy(predicate, strategy);
+        }
+
+        @Override
+        public <Type> void registerUnmarshallingStrategy(Class<Type> type, Function<Constable, Type, GrammarException> strategy) {
+            if (frozen) throw new UnsupportedOperationException();
+            else super.registerUnmarshallingStrategy(type, strategy);
+        }
+
+        @Override
+        public <Type> void registerFallbackMarshallingStrategy(Predicate<Object> predicate, Function<Type, Constable, GrammarException> strategy) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <Type> void registerMarshallingStrategy(Class<Type> type, Function<Type, Constable, GrammarException> strategy) {
+            if (frozen) throw new UnsupportedOperationException();
+            else super.registerMarshallingStrategy(type, strategy);
         }
     }
 
-    @Contract(pure = true)
-    public static Map<String, Object> toMap(Object object) {
-        final Map<String, Object> map = new LinkedHashMap<>();
-        new Json(new StringWriter()).marshal(object, object.getClass(), map);
-        return map;
-    }
+    public class Write<To> implements AutoCloseable {
 
-    @Contract(pure = true)
-    public static Map<String, Object> fromJson(String string) {
-        try (final Json json = new Json(string)) {
-            return json.toMap(new LinkedHashMap<>());
+        //<editor-fold desc="Writing methods" defaultstate="collapsed">
+        protected transient final JsonWriter<To> writer;
+        protected transient final To hook;
+
+        public Write(JsonWriter<To> writer, To hook) {
+            this.writer = writer;
+            this.hook = hook;
         }
-    }
 
-    public static <Type> Type fromJson(String string, Type object) {
-        try (final Json json = new Json(string)) {
-            if (object.getClass().isArray()) return json.toArray(object);
-            else return json.toObject(object);
+        @SuppressWarnings("UnusedReturnValue")
+        public Write<To> indent(String indentUnit) {
+            this.writer.indent = indentUnit;
+            return this;
         }
-    }
 
-    @Contract(pure = true)
-    public static <Type> Type fromJson(String string, Class<Type> object) {
-        try (final Json json = new Json(string)) {
-            if (object.isArray()) return (Type) json.toArray(object.getComponentType());
-            else return json.toObject(object);
+        public void writeValue(Constable value) {
+            this.writer.writeValue(hook, value);
         }
-    }
 
-    public static <Type> Type fromJson(String string, Type object, Class<?> type) {
-        try (final Json json = new Json(string)) {
-            return json.toObject(object, type);
+        public void writeObject(Container map) {
+            this.writer.writeContainer(hook, map);
         }
-    }
 
-    static Object read(char initial, Json json) {
-        final StringBuilder builder = new StringBuilder();
-        if (initial == '"') {
-            final String value = new StringReader(json.reader, builder).read();
-            if (value.contains("\\u")) {
-                return CODE_POINT.matcher(value)
-                    .replaceAll(result -> Json.codeToChar(result.group()));
-            } else return value;
-        } else if (initial == '{') {
-            json.reset();
-            try (JsonObject object = new JsonObject(json)) {
-                return object.readMap();
+        public void writeObject(Map<? super String, ? extends Constable> map) {
+            //noinspection unchecked,rawtypes
+            this.writer.writeContainer(hook, Container.of((Map) map));
+        }
+
+        public void writeObject(Object object) {
+            if (object instanceof Map<?, ?>) //noinspection unchecked
+                this.writeObject((Map<? super String, ? extends Constable>) object);
+            else
+                this.writeValue(Json.this.marshal(object));
+        }
+
+        public void writeObject(Object object, Class<?> type) {
+            this.writeValue(Json.this.marshal(type, object));
+        }
+
+        public void writeArray(Array value) {
+            this.writer.writeSeries(hook, value);
+        }
+
+        public void writeArray(Series value) {
+            this.writer.writeSeries(hook, value);
+        }
+
+        public void writeArray(int[] values) {
+            this.writeArray(Series.of(values));
+        }
+
+        public void writeArray(float[] values) {
+            this.writeArray(Series.of(values));
+        }
+
+        public void writeArray(double[] values) {
+            this.writeArray(Series.of(values));
+        }
+
+        public void writeArray(boolean[] values) {
+            this.writeArray(Series.of(values));
+        }
+
+        public void writeArray(Constable... values) {
+            this.writeArray(new Array(values));
+        }
+
+        public void writeObjectArray(Collection<?> values) {
+            Constable[] array = values.stream().map(Json.this::marshal).toArray(Constable[]::new);
+            this.writeArray(array);
+        }
+
+        public void writeObjectArray(Object[] values) {
+            Constable[] array = Arrays.stream(values).map(Json.this::marshal).toArray(Constable[]::new);
+            this.writeArray(array);
+        }
+
+        public JsonObject object() {
+            return new JsonObject();
+        }
+
+        public JsonArray array() {
+            return new JsonArray();
+        }
+
+        protected To getHook() {
+            return hook;
+        }
+
+        protected JsonWriter<To> getWriter() {
+            return writer;
+        }
+
+        @Override
+        public void close() {
+            if (hook instanceof AutoCloseable closer) {
+                try {
+                    closer.close();
+                } catch (Exception e) {
+                    throw new JsonException(e);
+                }
             }
-        } else if (initial == '[') {
-            json.reset();
-            try (JsonArray array = new JsonArray(json)) {
-                return array.readList();
+        }
+
+        public class JsonArray implements AutoCloseable {
+            private static final int START = 0, AFTER = 1;
+            int state = START;
+
+            public JsonArray() {
+                writer.writeSeriesOpen(hook);
             }
-        } else if (initial >= '0' && initial <= '9' || initial == '-') {
-            json.reset();
-            return new NumberReader(json.reader, builder).read();
-        } else if (initial == 'f' || initial == 't') {
-            json.reset();
-            return new BooleanReader(json.reader, builder).read();
-        } else if (initial == 'n') {
-            json.reset();
-            return new NullReader(json.reader, builder).read();
-        } else throw new JsonException("Expected value start, found illegal '" + initial + "'.");
-    }
 
-    static String sanitise(String string) {
-        final String part = string
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-            .replace("\b", "\\b")
-            .replace("\f", "\\f");
-        return Json.charToCode(part);
-    }
+            public void write(Series series) {
+                series.forEach(this::writeValue);
+            }
 
-    static void write(Object value, Json json) {
-        if (value instanceof Double d) json.writeString(FORMAT.format(d));
-        else if (value instanceof Boolean || value instanceof Number) json.writeString(value.toString());
-        else if (value instanceof String string) json.writeString('"' + sanitise(string) + '"');
-        else if (value == null) json.writeString("null");
-        else if (value instanceof Map<?, ?> child) try (JsonObject object = new JsonObject(json)) {
-            object.write(child);
+            public void writeArray(Constable... objects) {
+                for (Constable object : objects) {
+                    this.writeValue(object);
+                }
+            }
+
+            public void writeArray(int[] primitives) {
+                for (Constable object : primitives) {
+                    this.writeValue(object);
+                }
+            }
+
+            public void writeArray(float[] primitives) {
+                for (Constable object : primitives) {
+                    this.writeValue(object);
+                }
+            }
+
+            public void writeArray(double[] primitives) {
+                for (Constable object : primitives) {
+                    this.writeValue(object);
+                }
+            }
+
+            public void writeArray(long[] primitives) {
+                for (Constable object : primitives) {
+                    this.writeValue(object);
+                }
+            }
+
+            public void writeObjects(List<?> list) {
+                list.forEach(this::writeObject);
+            }
+
+            public void writeObject(Object unchecked) {
+                Constable marshal = Json.this.marshal(unchecked);
+                this.writeValue(marshal);
+            }
+
+            public void writeValue(Constable value) {
+                if (state == AFTER) {
+                    writer.writeSeriesAnd(hook, true);
+                }
+                writer.writeContainerValue(hook, value);
+                state = AFTER;
+            }
+
+            public void writeValue(Object unchecked) {
+                this.writeValue(Json.this.marshal(unchecked));
+            }
+
+            public JsonObject object() {
+                if (state == AFTER) {
+                    writer.writeSeriesAnd(hook, true);
+                }
+                this.state = AFTER;
+                return new JsonObject();
+            }
+
+            public JsonArray array() {
+                return new JsonArray();
+            }
+
+            @Override
+            public void close() {
+                writer.writeSeriesAnd(hook, false);
+                writer.writeContainerClose(hook);
+            }
         }
-        else if (value instanceof List<?> child) try (JsonArray array = new JsonArray(json)) {
-            array.write(child);
+
+        public class JsonObject implements AutoCloseable {
+            private static final int KEY = 0, VALUE = 1, AFTER = 2;
+            int state = KEY;
+
+            public JsonObject() {
+                writer.writeContainerOpen(hook);
+            }
+
+            public void write(Container container) {
+                container.forEach(this::write);
+            }
+
+            public void write(Map<String, Constable> map) {
+                map.forEach(this::write);
+            }
+
+            public void write(String key, Constable value) {
+                if (state == AFTER) {
+                    writer.writeContainerAnd(hook, true);
+                    state = KEY;
+                }
+                if (state != KEY) throw new IllegalStateException("Key/value pair cannot be written here");
+                writer.writeContainerPair(hook, key, value);
+                state = AFTER;
+            }
+
+            public void write(String key, Object unchecked) {
+                this.write(key, Json.this.marshal(unchecked));
+            }
+
+            public void writeObject(Object unchecked) {
+                Constable marshal = Json.this.marshal(unchecked);
+                if (marshal instanceof Container container) this.write(container);
+                else throw new IllegalArgumentException("Object '" + unchecked + "' is not a key/value container");
+            }
+
+            public void writeKey(String key) {
+                if (state == AFTER) {
+                    writer.writeContainerAnd(hook, true);
+                    state = KEY;
+                }
+                if (state != KEY) throw new IllegalStateException("Key cannot be written here");
+                writer.writeContainerKey(hook, key);
+                writer.writeContainerSeparator(hook);
+                state = VALUE;
+            }
+
+            public void writeValue(Constable value) {
+                if (state != VALUE) throw new IllegalStateException("Key cannot be written here");
+                writer.writeContainerValue(hook, value);
+                state = AFTER;
+            }
+
+            public void writeValue(Object unchecked) {
+                this.writeValue(Json.this.marshal(unchecked));
+            }
+
+            public JsonObject object() {
+                if (state != VALUE) throw new IllegalStateException("Inner object must follow a key");
+                this.state = AFTER;
+                return new JsonObject();
+            }
+
+            public JsonArray array() {
+                if (state != VALUE) throw new IllegalStateException("Inner array must follow a key");
+                this.state = AFTER;
+                return new JsonArray();
+            }
+
+            @Override
+            public void close() {
+                writer.writeContainerAnd(hook, false);
+                writer.writeContainerClose(hook);
+            }
         }
-        else if (value instanceof JsonData data) data.write(json);
-        json.flush();
+        //</editor-fold>
+
     }
 
-    public static Json of(String string) {
-        return new Json(new ByteArrayInputStream(string.getBytes(StandardCharsets.UTF_8)));
-    }
+    public class Read implements AutoCloseable {
+        //<editor-fold desc="Reading methods" defaultstate="collapsed">
+        protected transient final JsonReader reader;
+        protected transient final Reader hook;
 
-    @Override
-    protected <Type> Type createObject(Class<Type> type) {
-        return super.createObject(type);
-    }
-
-    @Override
-    protected <Type, Container extends Map<String, Object>> Container marshal(Object object, Class<Type> type,
-                                                                              Container container) {
-        return super.marshal(object, type, container);
-    }
-
-    @Override
-    protected <Type, Container extends Map<?, ?>> Type unmarshal(Type object, Class<?> type, Container container) {
-        return super.unmarshal(object, type, container);
-    }
-
-    @Override
-    protected <Type, Container extends Map<?, ?>> Type unmarshal(Class<Type> type, Container container) {
-        return super.unmarshal(type, container);
-    }
-
-    @Override
-    protected <Type, Container extends Map<?, ?>> Type unmarshal(Type object, Container container) {
-        return super.unmarshal(object, container);
-    }
-
-    @Override
-    protected Map<String, Object> marshal(Object object) {
-        return super.marshal(object);
-    }
-
-    @Deprecated
-    protected void write(Object object, Class<?> type, Map<String, Object> map) {
-        this.marshal(object, type, map);
-    }
-
-    @SuppressWarnings("all")
-    public void write(Object object, Class<?> type, String indent) {
-        assert object != null : "Object was null.";
-        assert object instanceof Class<?> ^ true : "Classes cannot be read from.";
-        final Map<String, Object> map = new LinkedHashMap<>();
-        this.marshal(object, type, map);
-        this.write(map, indent, 0);
-    }
-
-    public void write(Object object, String indent) {
-        if (object instanceof Map<?, ?> map) this.write(map, indent, 0);
-        else if (object instanceof List<?> list) this.write(list, indent, 0);
-        else this.write(object, object.getClass(), indent);
-    }
-
-    public void write(Object object) {
-        this.write(object, object.getClass(), (String) null);
-    }
-
-    @Override
-    protected Object construct(Object data, Class<?> expected) {
-        return super.construct(data, expected);
-    }
-
-    @Override
-    protected Object constructArray(Class<?> type, Collection<?> list) {
-        return super.constructArray(type, list);
-    }
-
-    @Deprecated
-    @SuppressWarnings("all")
-    protected <Type> Type toObject(Type object, Class<?> type, Map<?, ?> map) {
-        return this.unmarshal(object, type, map);
-    }
-
-    @SuppressWarnings({"all"})
-    public <Type> Type toObject(Type object, Class<?> type) {
-        assert object != null : "Object was null.";
-        assert object instanceof Class<?> ^ true : "Classes cannot be written to.";
-        final Map<String, Object> map = this.toMap(new LinkedHashMap<>());
-        return this.unmarshal(object, type, map);
-    }
-
-    public <Type> Type toObject(Type object) {
-        assert object != null : "Object was null.";
-        return this.toObject(object, object.getClass());
-    }
-
-    public <Type> Type toObject(Class<Type> type) {
-        final Map<String, Object> map = this.toMap(new HashMap<>());
-        return this.unmarshal(type, map);
-    }
-
-    public Object[] toArray() {
-        return this.toArray(new Object[0]);
-    }
-
-    public <Component> Component[] toArray(Class<Component> type) {
-        return (Component[]) this.toArray(Array.newInstance(type, 0));
-    }
-
-    @SuppressWarnings({"all"})
-    public <Container> Container toArray(Container array) {
-        try (JsonArray source = new JsonArray(this)) {
-            return source.toArray(array);
+        public Read(Reader reader) {
+            this.reader = new JsonReader();
+            if (reader.markSupported()) this.hook = reader;
+            else this.hook = new BufferedReader(reader);
         }
-    }
 
-    @Deprecated(since = "1.2.0")
-    public boolean willBeMap() {
-        char c;
-        while (true) {
-            this.mark(4);
-            c = this.readChar();
-            if (c <= 32 || c == 160) continue;
-            break;
-        }
-        this.reset();
-        return c == '{';
-    }
-
-    @Deprecated(since = "1.2.0")
-    public Object toSomething() {
-        return this.readObject();
-    }
-
-    public Object readObject() {
-        char c;
-        while (true) {
-            this.mark(4);
-            c = this.readChar();
-            if (c <= 32 || c == 160) continue;
-            break;
-        }
-        this.reset();
-        return Json.read(c, this);
-    }
-
-    public List<Object> toList() {
-        return this.toList(new ArrayList<>());
-    }
-
-    public <Container extends List<Object>> Container toNewList(Supplier<Container> supplier) {
-        final Container list = supplier.get();
-        return this.toList(list);
-    }
-
-    public <Container extends List<Object>> Container toList(Container list) {
-        try (JsonArray array = new JsonArray(this)) {
-            return array.toList(list);
-        }
-    }
-
-    public Map<String, Object> toMap() {
-        return this.toMap(new LinkedHashMap<>());
-    }
-
-    public <Container extends Map<String, Object>> Container toNewMap(Supplier<Container> supplier) {
-        final Container map = supplier.get();
-        return this.toMap(map);
-    }
-
-    public <Container extends Map<String, Object>> Container toMap(final Container map) {
-        try (JsonObject object = new JsonObject(this)) {
-            return object.toMap(map);
-        }
-    }
-
-    public Object readElement(char initial) {
-        return Json.read(initial, this);
-    }
-
-    public void write(List<?> list) {
-        this.write(list, null, 0);
-    }
-
-    public void write(List<?> list, String indent, int level) {
-        if (writer == null) throw new JsonException("This Json controller has no writer.");
-        this.setController(new WriteController(indent, level));
-        try (JsonArray array = new JsonArray(this)) {
-            array.write(list);
-        }
-    }
-
-    public void write(Map<?, ?> map) {
-        this.write(map, null, 0);
-    }
-
-    public void write(Map<?, ?> map, String indent, int level) {
-        this.setController(new WriteController(indent, level));
-        try (JsonObject object = new JsonObject(this)) {
-            object.write(map);
-        }
-    }
-
-    protected void flush() {
-        if (writer != null) {
+        public Constable readValue() {
             try {
-                this.writer.flush();
+                return reader.readValue(hook);
             } catch (IOException e) {
                 throw new JsonException(e);
             }
         }
-    }
 
-    protected void mark(int chars) {
-        try {
-            this.reader.mark(chars);
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    protected void writeString(String value) {
-        try {
-            this.writer.write(value);
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-        this.flush();
-    }
-
-    protected void writeChar(char c) {
-        try {
-            this.writer.write(c);
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    protected char readChar() {
-        try {
-            return (char) reader.read();
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    protected void reset() {
-        try {
-            this.reader.reset();
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    @Override
-    public void close() {
-        try {
-            this.state = 0;
-            this.controller = null;
-            if (reader != null) reader.close();
-            if (writer != null) writer.close();
-        } catch (IOException ex) {
-            throw new JsonException(ex);
-        }
-    }
-
-    public boolean isWritable() {
-        return writer != null;
-    }
-
-    WriteController writeController() {
-        return controller;
-    }
-
-    void setController(WriteController controller) {
-        this.controller = controller;
-    }
-
-    private interface Reader {
-
-        Object read();
-
-    }
-
-    protected record BooleanReader(java.io.Reader stream, StringBuilder builder)
-        implements Json.Reader {
-
-        public Object read() {
+        public Series readSeries() {
             try {
-                this.stream.mark(4);
-                if (this.stream.read() == 't'
-                    && this.stream.read() == 'r'
-                    && this.stream.read() == 'u'
-                    && this.stream.read() == 'e'
-                ) return true;
-                this.stream.reset();
-                if (this.stream.read() == 'f'
-                    && this.stream.read() == 'a'
-                    && this.stream.read() == 'l'
-                    && this.stream.read() == 's'
-                    && this.stream.read() == 'e'
-                ) return false;
-                this.stream.reset();
-                throw new JsonException("Unable to decipher value starting '"
-                    + (char) this.stream.read()
-                    + (char) this.stream.read()
-                    + (char) this.stream.read()
-                    + (char) this.stream.read() + "...' when expecting boolean.");
-            } catch (EOFException ex) {
-                throw new JsonException("Reached end of Json without finishing expected boolean.");
-            } catch (IOException ex) {
-                throw new JsonException(ex);
+                return reader.readSeries(hook);
+            } catch (IOException e) {
+                throw new JsonException(e);
             }
         }
 
-    }
-
-    protected record NullReader(java.io.Reader stream, StringBuilder builder)
-        implements Json.Reader {
-
-        public Object read() {
+        public Container readContainer() {
             try {
-                this.stream.mark(4);
-                if (this.stream.read() == 'n'
-                    && this.stream.read() == 'u'
-                    && this.stream.read() == 'l'
-                    && this.stream.read() == 'l'
-                ) return null;
-                this.stream.reset();
-                throw new JsonException("Unable to decipher value starting '"
-                    + (char) this.stream.read()
-                    + (char) this.stream.read()
-                    + (char) this.stream.read()
-                    + (char) this.stream.read() + "...' when expecting 'null'.");
-            } catch (EOFException ex) {
-                throw new JsonException("Reached end of Json without finishing expected null.");
-            } catch (IOException ex) {
-                throw new JsonException(ex);
+                return reader.readContainer(hook);
+            } catch (IOException e) {
+                throw new JsonException(e);
             }
         }
 
-    }
+        public <Value> Value readObject(Class<Value> type) {
+            return Json.this.unmarshal(type, this.readValue());
+        }
 
-    protected record StringReader(java.io.Reader stream, StringBuilder builder)
-        implements Json.Reader {
+        public <ArrayType> ArrayType readArray(Class<ArrayType> arrayType) {
+            if (!arrayType.isArray()) throw new IllegalArgumentException(arrayType.getName() + " is not an array type");
+            Class<?> componentType = arrayType.getComponentType();
+            return Json.this.unmarshalArray(arrayType, componentType, this.readSeries());
+        }
+
+        public <Value> Value[] readArrayOf(Class<Value> componentType) {
+            //noinspection unchecked
+            return Json.this.unmarshalArray((Class<Value[]>) componentType.arrayType(), componentType, this.readSeries());
+        }
 
         @Override
-        public String read() {
-            try {
-                boolean escape = false;
-                while (true) {
-                    final char c = (char) stream.read();
-                    if (c == '\\' && !escape) escape = true;
-                    else if (c == '"' && !escape) return builder.toString();
-                    else {
-                        if (escape) {
-                            switch (c) {
-                                case 'n' -> this.builder.append('\n');
-                                case 'r' -> this.builder.append('\r');
-                                case 't' -> this.builder.append('\t');
-                                case 'f' -> this.builder.append('\f');
-                                case 'b' -> this.builder.append('\b');
-                                case 'u' -> this.builder.append("\\u");
-                                default -> this.builder.append(c);
-                            }
-                            escape = false;
-                        } else this.builder.append(c);
-                    }
+        public void close() {
+            if (hook instanceof AutoCloseable closer) {
+                try {
+                    closer.close();
+                } catch (Exception e) {
+                    throw new JsonException(e);
                 }
-            } catch (EOFException ex) {
-                throw new JsonException("Reached end of Json without closing quote '\"'");
-            } catch (IOException ex) {
-                throw new JsonException(ex);
             }
         }
 
+        protected Reader getHook() {
+            return hook;
+        }
+        //</editor-fold>
     }
 
-    protected record NumberReader(java.io.Reader stream, StringBuilder builder)
-        implements Json.Reader {
-
-        @Override
-        public Number read() {
-            try {
-                boolean first = true, decimal = false;
-                while (true) {
-                    this.stream.mark(4);
-                    final char c = (char) stream.read();
-                    if (first) {
-                        first = false;
-                        assert (c >= '0' && c <= '9') || c == '-';
-                    } else if (c == '.' && !decimal) {
-                        decimal = true;
-                    } else if (c < '0' || c > '9') {
-                        this.stream.reset();
-                        if (decimal) return Double.valueOf(builder.toString());
-                        final long value = Long.parseLong(builder.toString());
-                        if (value == (int) value) return (int) value;
-                        else return value;
-                    }
-                    this.builder.append(c);
-                }
-            } catch (EOFException ex) {
-                throw new JsonException("Reached end of Json without closing quote '\"'");
-            } catch (IOException ex) {
-                throw new JsonException(ex);
-            }
-        }
-
-    }
-
-    @Deprecated
-    @SuppressWarnings({"SameParameterValue"})
-    public static class JsonHelper extends Json {
-
-        public JsonHelper() {
-            super("{}");
-        }
-
-        public <Type> Type createObject(Class<Type> type) {
-            return super.createObject(type);
-        }
-
-        public void mapToObject(Object object, Class<?> type, Map<?, ?> map) {
-            super.unmarshal(object, type, map);
-        }
-
-        public void objectToMap(Object object, Class<?> type, Map<String, Object> map) {
-            super.marshal(object, type, map);
-        }
-
-    }
-
-    static class WriteController {
-
-        final String indent;
-        int level;
-
-        public WriteController(String indent) {
-            this.indent = indent;
-        }
-
-        public WriteController(String indent, int level) {
-            this(indent);
-            this.level = level;
-        }
-
-        public boolean isPretty() {
-            return indent != null;
-        }
-
-        public void enter() {
-            this.level++;
-        }
-
-        public void exit() {
-            this.level--;
-        }
-
-        public String getIndent() {
-            if (!this.isPretty()) return "";
-            return "\n" + String.valueOf(indent).repeat(Math.max(0, level));
-        }
-
-    }
 
 }
-
-abstract class JsonElement implements Closeable {
-
-    protected transient final Json json;
-    protected transient final Json.WriteController controller;
-
-    public JsonElement(Json json) {
-        this.json = json;
-        this.controller = json.writeController();
-    }
-
-    public abstract void open();
-
-    @Override
-    public abstract void close();
-
-    public boolean isWritable() {
-        return json.isWritable();
-    }
-
-    public boolean isPretty() {
-        return controller.isPretty();
-    }
-
-    protected void flush() {
-        this.json.flush();
-    }
-
-    protected void mark(int chars) {
-        if (!this.isWritable()) json.mark(chars);
-    }
-
-    protected void writeString(String value) {
-        if (this.isWritable()) json.writeString(value);
-    }
-
-    protected void writeChar(char c) {
-        if (this.isWritable()) json.writeChar(c);
-    }
-
-    protected char readChar() {
-        if (!this.isWritable()) return json.readChar();
-        else return 0;
-    }
-
-    protected void reset() {
-        this.json.reset();
-    }
-
-}
-
