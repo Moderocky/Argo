@@ -239,7 +239,7 @@ public class JsonReader implements mx.kenzie.grammar.io.Reader<Reader, IOExcepti
     @Override
     public Container readContainer(Reader reader) throws IOException {
         Container container = Container.empty();
-        this.readContainerOpen(reader, container);
+        this.readContainerOpen(reader);
         do {
             String key = this.readContainerKey(reader);
             if (key == null) break;
@@ -247,12 +247,12 @@ public class JsonReader implements mx.kenzie.grammar.io.Reader<Reader, IOExcepti
             Constable value = this.readContainerValue(reader);
             container.put(key, value);
         } while (this.readAnd(reader));
-        this.readContainerClose(reader, container);
+        this.readContainerClose(reader);
         return container;
     }
 
     @Override
-    public void readContainerOpen(Reader reader, Container container) throws IOException {
+    public void readContainerOpen(Reader reader) throws IOException {
         char lookahead = this.lookahead(reader);
         int read = reader.read();
         assert lookahead == read;
@@ -282,12 +282,12 @@ public class JsonReader implements mx.kenzie.grammar.io.Reader<Reader, IOExcepti
     }
 
     @Override
-    public void readContainerAnd(Reader reader, Container container) throws IOException {
+    public void readContainerAnd(Reader reader) throws IOException {
         this.readSeriesAnd(reader); // it's the same!
     }
 
     @Override
-    public void readContainerClose(Reader reader, Container container) throws IOException {
+    public void readContainerClose(Reader reader) throws IOException {
         char lookahead = this.lookahead(reader);
         int read = reader.read();
         assert lookahead == read;

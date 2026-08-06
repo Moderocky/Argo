@@ -6,6 +6,7 @@ import mx.kenzie.grammar.Series;
 import org.junit.Test;
 import org.valross.constantine.Array;
 
+import java.io.PrintStream;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -35,6 +36,8 @@ public class StaticTest {
         assertEquals("[\"hello\", \"there\"]", Json.toString(new Array("hello", "there")));
         assertEquals("[]", Json.toString(Series.empty()));
         assertEquals("[\"hello\", -3, {}]", Json.toString(new Array("hello", -3, Container.empty())));
+        record Foo(int x, int y) {}
+        Json.allTypes().writer(System.out).writeObject(new Foo(1, 2));
     }
 
 }

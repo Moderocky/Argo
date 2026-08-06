@@ -124,6 +124,14 @@ public class Json extends Grammar {
         return this.reader(stream, STANDARD_CHARSET);
     }
 
+    public Read reader(File file, Charset charset) throws FileNotFoundException {
+        return this.reader(new FileInputStream(file), charset);
+    }
+
+    public Read reader(File file) throws FileNotFoundException {
+        return this.reader(file, STANDARD_CHARSET);
+    }
+
     public Read reader(String source) {
         return new Read(new StringReader(source));
     }
@@ -149,6 +157,14 @@ public class Json extends Grammar {
 
     public Write<OutputStream> writer(OutputStream stream) {
         return this.writer(stream, STANDARD_CHARSET);
+    }
+
+    public Write<OutputStream> writer(File file, Charset charset) throws FileNotFoundException {
+        return this.writer(new FileOutputStream(file), charset);
+    }
+
+    public Write<OutputStream> writer(File file) throws FileNotFoundException {
+        return this.writer(file, STANDARD_CHARSET);
     }
 
     protected static class Unsafe extends Grammar.Unsafe {
@@ -218,6 +234,11 @@ public class Json extends Grammar {
         }
 
         @SuppressWarnings("UnusedReturnValue")
+        public Write<To> pretty() {
+            return this.indent(STANDARD_INDENT_UNIT);
+        }
+
+        @SuppressWarnings("UnusedReturnValue")
         public Write<To> indent(String indentUnit) {
             this.writer.indent = indentUnit;
             return this;
@@ -256,6 +277,10 @@ public class Json extends Grammar {
         }
 
         public void writeArray(int[] values) {
+            this.writeArray(Series.of(values));
+        }
+
+        public void writeArray(long[] values) {
             this.writeArray(Series.of(values));
         }
 

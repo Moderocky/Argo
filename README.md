@@ -150,7 +150,7 @@ JSON arrays will be de-serialised as a `Series`.
 Record types have a safe, built-in serialisation system.
 When using an unsafe `Json` or the all-types instance, the record type will be automatically registered at first encounter if absent.
 
-```jshelllanguage
+```java
 Json json = new Json();
 json.registerRecord(MyRecord.class); // Creates the serialiser
 
@@ -179,7 +179,7 @@ Enumerated types can be automatically serialised either by their name or their o
 Both strategies have a risk: if the user changes the name of an enum then old name-based JSON cannot be de-serialised.
 However, if the user changes the order of existing enums in the class then ordinal-based JSON cannot be de-serialised.
 
-```jshelllanguage
+```java
 Json json = new Json();
 json.registerEnum(RetentionPolicy.class);
 // Stored as "SOURCE", "CLASS", or "RUNTIME"
@@ -191,7 +191,7 @@ json.registerEnumByOrdinal(RetentionPolicy.class);
 
 Unchecked objects are serialised like records but without the stringent safety checks.
 
-```jshelllanguage
+```java
 class MyObject {
     String a = "...";
     boolean b;
@@ -289,13 +289,15 @@ Users are advised to treat these instances cautiously or to use manual serialisa
 
 ## Manual Serialisation
 
+### Manual Object Marshalling
+
 Marshalling strategies can be registered with the [Grammar](https://github.com/Moderocky/Grammar) object to give
 users more control of how certain types are serialised and de-serialised.
 This can also help with registering types from third-party code.
 
 Complex types can be converted to any primitive data value (numbers, strings, booleans) when they are encountered.
 
-```jshelllanguage
+```java
 Json json = new Json();
 json.registerMarshallingStrategy(Date.class, Date::getTime);
 json.registerUnmarshallingStrategy(Date.class, value -> new Date((long) value));
@@ -304,7 +306,7 @@ json.registerUnmarshallingStrategy(Date.class, value -> new Date((long) value));
 
 Complex types can also be converted to a `Container` or `Series` to be stored as JSON objects or arrays.
 
-```jshelllanguage
+```java
 json.registerMarshallingStrategy(Date.class, date -> Container.of(
         "day", date.getDay(),
         "month", date.getMonth(),
@@ -318,7 +320,7 @@ json.registerUnmarshallingStrategy(Date.class, Container.class,
 ```
 
 
-```jshelllanguage
+```java
 json.registerMarshallingStrategy(Date.class, date -> Series.of(
         date.getDay(), date.getMonth(), date.getYear()
 ));
@@ -330,3 +332,57 @@ json.registerUnmarshallingStrategy(Date.class, Series.class,
 ```
 
 
+### Writing JSON
+
+For implementations not requiring data serialisation a direct writer system is provided.
+The writer wraps any supported output format (e.g. an `OutputStream`, a `PrintWriter`, a `StringBuilder`).
+
+```java
+Json json = Json.simple();
+
+var writer = json.writer(System.out); // Writing JSON directly to console out
+writer.writeObject(Container.of("hello", "there"));
+// {"hello": "there"}
+```
+
+The writer can be given an indentation unit (e.g. 2 spaces, 1 tab).
+The `pretty` method uses a standard indentation unit (1 tab).
+
+```java
+var writer = json.writer(System.out).pretty(); // Uses 1 'tab' as indentation
+writer.writeObject(Container.of("hello", "there"));
+// {
+//     "hello": "there"
+// }
+```
+
+Typically, only one value should be written directly to the writer itself (since multiple sequential values is not valid JSON).
+This value can be a key/value container or a value series.
+
+If the `Json` API instance from which the writer was spawned supports object marshalling methods then
+serialisable objects may be written directly to the JSON.
+
+
+```java
+record Foo(int x, int y) {}
+var writer = Json.allTypes().writer(System.out);
+writer.writeObject(new Foo(1, 2));
+// {"x": 1, "y": 2}
+```
+
+
+## Format Support
+
+The JSON schema leaves the extent of support for many value types up to implementations.
+Some of these features have recommended conventions, i.e. long numbers being stored as strings or Unicode values
+being stored as escape sequences.
+
+_Argo_ subscribes to some of these common conventions. Unicode characters outside the ASCII set are stored as `\u0000`
+escapes. Large characters (e.g. emoji) are stored as multi-escape sequences.
+Common whitespace escapes (`\t`, `\n`, `\r`, `\s`, etc.) are supported.
+
+Long numbers (e.g. 64-bit integers) are supported by Argo, but obviously other languages (e.g. _JavaScript_) may be
+unable to de-serialise these.
+
+There is no comment in the JSON schema.
+Argo does not support comments in JSON.
